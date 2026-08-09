@@ -1,0 +1,107 @@
+# PostgreSQL for a development cluster.
+#
+# This is not a production database. It is a single replica with no backups, no
+# replication and no resource guarantees, and it exists so the engine has
+# something to talk to on a laptop cluster. A real deployment points RE_DB_DSN
+# at a managed PostgreSQL and deletes this file.
+#
+# The image carries ltree and pgcrypto, which db/schema.sql requires.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  replicas: 1
+  strategy:
+    # The PVC is ReadWriteOnce, so a rolling update would deadlock waiting for
+    # the new pod to mount a volume the old pod still holds.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: re
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: re-database
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: re-database
+                  key: password
+            # The image only initialises the data directory when it is empty,
+            # and it refuses a non-empty mount point. A subdirectory keeps
+            # lost+found out of the way on volumes that have one.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            # pg_isready, not a TCP check: the port is listening well before
+            # the first-run initialisation finishes, and the schema job would
+            # otherwise start against a server still bootstrapping.
+            exec:
+              command: ["pg_isready", "-U", "re", "-d", "re"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "re", "-d", "re"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

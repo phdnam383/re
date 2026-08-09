@@ -1,0 +1,79 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "id": "rc-diagw-loadbalancer-down",
+      "category": "DIAGW_DOWN",
+      "summary": "DIAGW load balancer is TERMINATED",
+      "entity": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+      "role": "PRIMARY",
+      "confidence": 0.55,
+      "actions": [
+        {
+          "code": "RESTART_VNFC",
+          "priority": 90,
+          "mo_instance": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+          "path": "lifecycle.action",
+          "op": "REPLACE",
+          "value": "RESTART"
+        }
+      ]
+    },
+    {
+      "id": "rc-diagw-diameter-router-down",
+      "category": "DIAGW_DOWN",
+      "summary": "DIAGW Diameter router is TERMINATED",
+      "entity": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+      "role": "PRIMARY",
+      "confidence": 0.35,
+      "actions": [
+        {
+          "code": "RESTART_VNFC",
+          "priority": 90,
+          "mo_instance": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+          "path": "lifecycle.action",
+          "op": "REPLACE",
+          "value": "RESTART"
+        }
+      ]
+    },
+    {
+      "id": "rc-diagw-logic-down",
+      "category": "DIAGW_DOWN",
+      "summary": "DIAGW routing logic is TERMINATED",
+      "entity": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+      "role": "PRIMARY",
+      "confidence": 0.35,
+      "actions": [
+        {
+          "code": "RESTART_VNFC",
+          "priority": 90,
+          "mo_instance": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+          "path": "lifecycle.action",
+          "op": "REPLACE",
+          "value": "RESTART"
+        }
+      ]
+    }
+  ],
+  "rule_executions": [
+    {
+      "rule_id": "rule-link_to_diagw_down",
+      "rule_name": "link_to_diagw_down",
+      "status": "COMPLETE",
+      "root_cause_count": 3
+    },
+    {
+      "rule_id": "rule-link_to_sipgw_down",
+      "rule_name": "link_to_sipgw_down",
+      "status": "COMPLETE",
+      "root_cause_count": 0
+    },
+    {
+      "rule_id": "rule-tps_overloaded",
+      "rule_name": "tps_overloaded",
+      "status": "COMPLETE",
+      "root_cause_count": 0
+    }
+  ]
+}

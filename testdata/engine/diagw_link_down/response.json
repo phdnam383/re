@@ -1,0 +1,70 @@
+{
+  "incident": "inc-diagw-0001",
+  "meta": {
+    "contextStatus": "COMPLETE"
+  },
+  "rca": {
+    "rootCauses": [
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "DIAGW_DOWN",
+        "confidence": 0.55,
+        "entity": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+        "id": "rc-diagw-loadbalancer-down",
+        "role": "PRIMARY",
+        "summary": "DIAGW load balancer is TERMINATED"
+      },
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "DIAGW_DOWN",
+        "confidence": 0.35,
+        "entity": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+        "id": "rc-diagw-diameter-router-down",
+        "role": "PRIMARY",
+        "summary": "DIAGW Diameter router is TERMINATED"
+      },
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "DIAGW_DOWN",
+        "confidence": 0.35,
+        "entity": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+        "id": "rc-diagw-logic-down",
+        "role": "PRIMARY",
+        "summary": "DIAGW routing logic is TERMINATED"
+      }
+    ]
+  },
+  "requestId": "req-diagw-0001",
+  "status": {
+    "context": "COMPLETE",
+    "overall": "COMPLETE",
+    "rca": "COMPLETE"
+  }
+}

@@ -1,0 +1,72 @@
+# Applies db/schema.sql and db/seed_test.sql.
+#
+# A Job, not an init container on the engine and not something the engine does
+# at startup. Schema is a deploy-time decision: an engine that migrated its own
+# database would do it once per replica, concurrently, and a rollback would
+# leave the schema ahead of the code.
+#
+# The SQL comes from a ConfigMap that kustomize generates from db/, so the
+# files applied here are the same ones the tests apply — there is no second
+# copy to drift.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: re-schema
+  labels:
+    app.kubernetes.io/name: re-schema
+    app.kubernetes.io/part-of: re
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: re-schema
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:17-alpine
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              # The Job may be scheduled before PostgreSQL finishes its
+              # first-run initialisation. Waiting here rather than raising
+              # backoffLimit keeps a genuine failure fast to spot: a crash loop
+              # from a broken schema looks nothing like a wait.
+              until pg_isready -h postgres -U "$PGUSER" -d "$PGDATABASE" -q; do
+                echo "waiting for postgres"
+                sleep 2
+              done
+
+              # ON_ERROR_STOP is what makes this a gate. Without it psql
+              # reports success after any number of failed statements, and the
+              # engine would come up against a half-created schema.
+              psql -v ON_ERROR_STOP=1 -h postgres -f /sql/schema.sql
+              psql -v ON_ERROR_STOP=1 -h postgres -f /sql/seed_test.sql
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: re-database
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: re-database
+                  key: password
+            - name: PGDATABASE
+              value: re
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: sql
+          configMap:
+            name: re-sql

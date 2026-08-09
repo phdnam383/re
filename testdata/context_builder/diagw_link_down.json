@@ -1,0 +1,206 @@
+{
+  "input": {
+    "request_id": "req-diagw-0001",
+    "incident": "inc-diagw-0001",
+    "alerts": [
+      {
+        "id": "eeeeeeee-1111-4111-8111-111111111111",
+        "source_path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
+        "alert_type": "COMMUNICATIONS_ALERT",
+        "probable_cause": "LINK_TO_PEER_DIAGW_DOWN",
+        "perceived_severity": "CRITICAL",
+        "state": "ACTIVE",
+        "created_at": "2026-06-18T01:00:00Z",
+        "additional_information": {
+          "application_protocol": "DIAMETER",
+          "dst_path": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+          "transport": "SCTP"
+        }
+      },
+      {
+        "id": "eeeeeeee-2222-4222-8222-222222222222",
+        "source_path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_2",
+        "alert_type": "COMMUNICATIONS_ALERT",
+        "probable_cause": "LINK_TO_PEER_DIAGW_DOWN",
+        "perceived_severity": "CRITICAL",
+        "state": "ACTIVE",
+        "created_at": "2026-06-18T01:00:01Z",
+        "additional_information": {
+          "application_protocol": "DIAMETER",
+          "dst_path": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+          "transport": "SCTP"
+        }
+      }
+    ]
+  },
+  "status": "COMPLETE",
+  "profiles": [
+    "link_to_peer_diagw_down_0001"
+  ],
+  "vdus": [
+    {
+      "path": "ims.vdu_cs_diag_logic",
+      "name": "cs_diag_logic",
+      "type": "LOGIC",
+      "namespace": "dev-sb",
+      "workload": "StatefulSet",
+      "replicas": 1,
+      "selector": "app=cs-diag-logic",
+      "nf_config": {
+        "application_protocol": "HTTP2",
+        "transport": "TCP"
+      },
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_diameter_router",
+      "name": "cs_diameter_router",
+      "type": "DIAGW",
+      "namespace": "dev-sb",
+      "workload": "StatefulSet",
+      "replicas": 1,
+      "selector": "app=cs-diameter-router",
+      "nf_config": {
+        "application_protocol": "DIAMETER",
+        "transport": "SCTP"
+      },
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_hss_connector",
+      "name": "cs_hss_connector",
+      "type": "DIAGW",
+      "namespace": "dev-sb",
+      "workload": "Deployment",
+      "replicas": 1,
+      "selector": "app=cs-hss-connector",
+      "nf_config": {
+        "application_protocol": "DIAMETER",
+        "transport": "SCTP"
+      },
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_loadbalancer_diagw",
+      "name": "cs_loadbalancer_diagw",
+      "type": "DIAGW",
+      "namespace": "dev-sb",
+      "workload": "Deployment",
+      "replicas": 1,
+      "selector": "app=cs-lb-diagw",
+      "nf_config": {
+        "application_protocol": "DIAMETER",
+        "transport": "SCTP"
+      },
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_sb_diameter_core",
+      "name": "sb_diameter_core",
+      "type": "DIAGW",
+      "namespace": "dev-sb",
+      "workload": "StatefulSet",
+      "replicas": 2,
+      "selector": "app=sb-diameter-core",
+      "nf_config": {
+        "application_protocol": "DIAMETER",
+        "transport": "SCTP"
+      },
+      "updated_at": "2026-06-18T00:00:00Z"
+    }
+  ],
+  "vnfcs": [
+    {
+      "path": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+      "vdu_path": "ims.vdu_cs_diag_logic",
+      "name": "vnfc_cs_diag_logic_1",
+      "status": "TERMINATED",
+      "instance_config": {
+        "failure_reason": "Routing logic process exited",
+        "ip": "10.56.70.39",
+        "port": 8080
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+      "vdu_path": "ims.vdu_cs_diameter_router",
+      "name": "vnfc_cs_diameter_router_1",
+      "status": "TERMINATED",
+      "instance_config": {
+        "failure_reason": "Diameter routing process is not ready",
+        "ip": "10.56.70.38",
+        "port": 3868
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1",
+      "vdu_path": "ims.vdu_cs_hss_connector",
+      "k8s_uid": "uid-cs-hss-connector-1",
+      "name": "vnfc_cs_hss_connector_1",
+      "status": "RUNNING",
+      "instance_config": {
+        "ip": "10.56.70.40",
+        "port": 3868
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+      "vdu_path": "ims.vdu_cs_loadbalancer_diagw",
+      "name": "vnfc_cs_loadbalancer_diagw_1",
+      "status": "TERMINATED",
+      "instance_config": {
+        "failure_reason": "SCTP association health check failed",
+        "ip": "10.56.70.37",
+        "port": 3868
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
+      "vdu_path": "ims.vdu_sb_diameter_core",
+      "k8s_uid": "uid-sb-diameter-core-1",
+      "name": "vnfc_sb_diameter_core_1",
+      "status": "RUNNING",
+      "instance_config": {
+        "ip": "10.56.60.10",
+        "port": 3868,
+        "zone": "zone-a"
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_2",
+      "vdu_path": "ims.vdu_sb_diameter_core",
+      "k8s_uid": "uid-sb-diameter-core-2",
+      "name": "vnfc_sb_diameter_core_2",
+      "status": "RUNNING",
+      "instance_config": {
+        "ip": "10.56.60.11",
+        "port": 3868,
+        "zone": "zone-b"
+      },
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    }
+  ],
+  "links": [
+    {
+      "src_path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
+      "dst_path": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+      "protocol": "DIAMETER",
+      "status": "DOWN",
+      "created_at": "2026-06-18T01:00:00Z",
+      "updated_at": "2026-06-18T01:00:00Z"
+    }
+  ],
+  "configuration": [],
+  "built_at": "2026-06-18T12:00:00Z"
+}

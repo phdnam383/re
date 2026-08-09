@@ -1,0 +1,95 @@
+# A stand-in for the NF configuration API, for a development cluster only.
+#
+# db/seed_test.sql points the TPS profile at
+# http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/num_of_log_file. The Service
+# below is named "api" on purpose: in-cluster DNS then resolves that exact URL
+# to this stub, so the seeded profile works unchanged. Nothing rewrites the
+# database.
+#
+# Delete this file for any real deployment. The value it serves is a fixture;
+# an engine reading a fixture instead of the NF's own configuration is the
+# failure the Configuration Provider exists to prevent.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-stub
+  labels:
+    app.kubernetes.io/name: configuration-stub
+data:
+  default.conf: |
+    server {
+      listen 8080;
+
+      # Every path answers the same JSON number. The provider decodes one JSON
+      # value per target, and 5 is what db/seed_test.sql documents as the
+      # fixture — it is what makes the log-file rule fire.
+      location / {
+        default_type application/json;
+        return 200 '5';
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configuration-stub
+  labels:
+    app.kubernetes.io/name: configuration-stub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: configuration-stub
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: configuration-stub
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+      containers:
+        - name: nginx
+          # The unprivileged image listens on 8080 and needs no root, which is
+          # what lets the pod keep the same security posture as the engine.
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /v1/probe
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: conf
+          configMap:
+            name: configuration-stub
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # The name is the contract: it has to match the host in the seeded profile
+  # URL, or the engine reports the configuration as missing and degrades the
+  # whole analysis to PARTIAL.
+  name: api
+  labels:
+    app.kubernetes.io/name: configuration-stub
+spec:
+  selector:
+    app.kubernetes.io/name: configuration-stub
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

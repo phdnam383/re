@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package mdaf.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "re/gen/mdafv1;mdafv1";
+
+service IncidentAnalysisEngine {
+  rpc AnalyzeIncident(AnalyzeIncidentRequest)
+      returns (AnalyzeIncidentResponse);
+}
+
+message AnalyzeIncidentRequest {
+  string request_id     = 1;
+  string incident       = 2;
+  repeated Alert alerts = 3;
+}
+
+message AnalyzeIncidentResponse {
+  string request_id     = 1;
+  string incident       = 2;
+
+  AnalysisStatus status = 3;
+
+  RootCauseAnalysis rca = 4;
+  AnalysisMeta meta     = 5;
+}
+
+message Alert {
+  string id                 = 1;
+  string source_path        = 2;
+  string alert_type         = 3;
+  string probable_cause     = 4;
+  string perceived_severity = 5;
+  string state              = 6;
+  string created_at         = 7;
+  google.protobuf.Struct additional_information = 8;
+}
+
+message AnalysisStatus {
+  string overall    = 1;
+  string context    = 2;
+  string rca        = 3;
+}
+
+message RootCauseAnalysis {
+  repeated RootCause root_causes = 1;
+}
+
+message RootCause {
+  string id         = 1;
+  string category   = 2;
+  string summary    = 3;
+  string entity     = 4;
+  string role       = 5; // PRIMARY | CONTRIBUTING | SUSPECTED
+  double confidence = 6;
+  repeated RecommendedAction actions = 7;
+}
+
+message RecommendedAction {
+  string code           = 1;
+  double priority       = 2;
+  string mo_instance    = 3;
+  string path           = 4;
+  string op             = 5; // ADD | REMOVE | REPLACE
+  google.protobuf.Value value = 6;
+}
+
+message AnalysisMeta {
+  string context_status = 1;
+  repeated MissingContext missing_context = 2;
+}
+
+message MissingContext {
+  string provider   = 1;
+  string entity     = 2;
+  string key        = 3;
+
+  // Why the context is missing: not found, non-2xx, timeout, invalid body.
+  // Provider and entity alone cannot distinguish "the row does not exist"
+  // from "the backend was unreachable", and only the second is an operator's
+  // problem.
+  string reason     = 4;
+}

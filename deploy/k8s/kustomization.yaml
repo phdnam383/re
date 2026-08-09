@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: re
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - postgres.yaml
+  - schema-job.yaml
+  - engine.yaml
+
+  # Development only — see the file header. Both of these stand in for
+  # infrastructure a real deployment already has.
+  - dev-configuration-stub.yaml
+
+# The SQL is generated from db/ rather than copied here, so the schema the Job
+# applies is the same file the tests apply. A second copy under deploy/ would
+# drift, and the first symptom would be an engine querying columns that exist
+# only in the version the tests used.
+#
+# Reaching outside the kustomization directory needs the load restrictor
+# relaxed. `kubectl apply -k` does not accept that flag — only `kubectl
+# kustomize` does — so the two are piped:
+#
+#   kubectl kustomize deploy/k8s --load-restrictor LoadRestrictionsNone \
+#     | kubectl apply -f -
+configMapGenerator:
+  - name: re-sql
+    files:
+      - ../../db/schema.sql
+      - ../../db/seed_test.sql
+
+# The generated name carries a content hash, so editing the SQL produces a new
+# ConfigMap rather than mutating the one a running Job has mounted.
+#
+# The Job's own name does not change, and a Job spec is immutable, so applying
+# after a schema edit fails until the old one is removed:
+#
+#   kubectl -n re delete job re-schema && kubectl apply -k deploy/k8s ...
+#
+# That is left as an explicit step. A Job that silently replaced itself would
+# re-run the schema on every apply, and db/seed_test.sql would overwrite
+# whatever an operator had changed in the meantime.
+#
+# Both files together are ~65 KB, well inside the 1 MB ConfigMap limit; a
+# schema that outgrows it needs a real migration tool, not a bigger ConfigMap.
+generatorOptions:
+  disableNameSuffixHash: false
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: re

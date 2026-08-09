@@ -1,0 +1,104 @@
+{
+  "input": {
+    "request_id": "req-tps-0001",
+    "incident": "inc-tps-0001",
+    "alerts": [
+      {
+        "id": "cccccccc-3333-4333-8333-333333333333",
+        "source_path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+        "alert_type": "QUALITY_OF_SERVICE_ALERT",
+        "probable_cause": "THRESHOLD_CROSSING",
+        "perceived_severity": "MAJOR",
+        "state": "ACTIVE",
+        "created_at": "2026-06-18T10:00:00Z",
+        "additional_information": {
+          "metric": "overload_ram",
+          "observed_value": 93.5,
+          "threshold_value": 85
+        }
+      },
+      {
+        "id": "cccccccc-3333-4333-8333-333333333334",
+        "source_path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+        "alert_type": "QUALITY_OF_SERVICE_ALERT",
+        "probable_cause": "THRESHOLD_CROSSING",
+        "perceived_severity": "MAJOR",
+        "state": "ACTIVE",
+        "created_at": "2026-06-18T10:00:02Z",
+        "additional_information": {
+          "metric": "overload_ram",
+          "observed_value": 94.1,
+          "threshold_value": 85
+        }
+      },
+      {
+        "id": "cccccccc-3333-4333-8333-333333333335",
+        "source_path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+        "alert_type": "QUALITY_OF_SERVICE_ALERT",
+        "probable_cause": "THRESHOLD_CROSSING",
+        "perceived_severity": "MAJOR",
+        "state": "ACTIVE",
+        "created_at": "2026-06-18T10:00:04Z",
+        "additional_information": {
+          "metric": "overload_ram",
+          "observed_value": 95,
+          "threshold_value": 85
+        }
+      }
+    ]
+  },
+  "status": "COMPLETE",
+  "profiles": [
+    "tps_overloaded_0001"
+  ],
+  "vdus": [
+    {
+      "path": "ims.vdu_sb_logic",
+      "name": "sb_logic",
+      "type": "LOGIC",
+      "namespace": "ims",
+      "workload": "StatefulSet",
+      "replicas": 3,
+      "selector": "app=sb-logic",
+      "updated_at": "2026-06-18T00:00:00Z"
+    }
+  ],
+  "vnfcs": [
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+      "vdu_path": "ims.vdu_sb_logic",
+      "k8s_uid": "a1b2c3d4-0001-0000-0000-000000000001",
+      "name": "sb-logic-1",
+      "status": "RUNNING",
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+      "vdu_path": "ims.vdu_sb_logic",
+      "name": "sb-logic-2",
+      "status": "TERMINATED",
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_3",
+      "vdu_path": "ims.vdu_sb_logic",
+      "name": "sb-logic-3",
+      "status": "TERMINATED",
+      "created_at": "2026-06-18T00:00:00Z",
+      "updated_at": "2026-06-18T00:00:00Z"
+    }
+  ],
+  "links": [],
+  "configuration": [
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+      "key": "number_of_log_file",
+      "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/num_of_log_file",
+      "value": 5,
+      "read_at": "2026-06-18T12:00:00Z"
+    }
+  ],
+  "built_at": "2026-06-18T12:00:00Z"
+}

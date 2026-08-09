@@ -1,0 +1,70 @@
+{
+  "incident": "inc-sipgw-0001",
+  "meta": {
+    "contextStatus": "COMPLETE"
+  },
+  "rca": {
+    "rootCauses": [
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "SIPGW_DOWN",
+        "confidence": 0.35,
+        "entity": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+        "id": "rc-sipgw-loadbalancer-down",
+        "role": "PRIMARY",
+        "summary": "I-CSCF load balancer is TERMINATED"
+      },
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "SIPGW_DOWN",
+        "confidence": 0.35,
+        "entity": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+        "id": "rc-sipgw-icscf-down",
+        "role": "PRIMARY",
+        "summary": "I-CSCF SIP component is TERMINATED"
+      },
+      {
+        "actions": [
+          {
+            "code": "RESTART_VNFC",
+            "moInstance": "ims.vdu_cs_logic.vnfc_cs_logic_1",
+            "op": "REPLACE",
+            "path": "lifecycle.action",
+            "priority": 90,
+            "value": "RESTART"
+          }
+        ],
+        "category": "SIPGW_DOWN",
+        "confidence": 0.35,
+        "entity": "ims.vdu_cs_logic.vnfc_cs_logic_1",
+        "id": "rc-sipgw-logic-down",
+        "role": "PRIMARY",
+        "summary": "SIPGW logic component is TERMINATED"
+      }
+    ]
+  },
+  "requestId": "req-sipgw-0001",
+  "status": {
+    "context": "COMPLETE",
+    "overall": "COMPLETE",
+    "rca": "COMPLETE"
+  }
+}

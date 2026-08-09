@@ -1,0 +1,29 @@
+{
+    "name": "tps_overloaded_0001",
+    "description": "Context for the TPS Overloaded",
+    "selector": {
+        "probable_causes": [
+            "THRESHOLD_CROSSING"
+        ],
+        "alert_types": [
+            "QUALITY_OF_SERVICE_ALERT"
+        ],
+        "additional_information": {
+            "metric": [
+                "overload_ram"
+            ]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ],
+        "configuration": [
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "number_of_log_file",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/num_of_log_file"
+            }
+        ]
+    }
+}

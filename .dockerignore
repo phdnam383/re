@@ -1,0 +1,11 @@
+# Everything the build does not need. Keeping the context small matters here:
+# the module tree carries golden fixtures and task documents that would
+# otherwise be shipped into every build layer.
+.git
+.gitignore
+deploy
+task
+testdata
+README.md
+Dockerfile
+.dockerignore

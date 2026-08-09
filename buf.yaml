@@ -1,0 +1,14 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # engine.proto sits at proto/ root rather than proto/mdaf/v1/.
+    - PACKAGE_DIRECTORY_MATCH
+    # IncidentAnalysisEngine is the name the design fixes; not renaming it.
+    - SERVICE_SUFFIX
+breaking:
+  use:
+    - FILE
