@@ -146,9 +146,7 @@ func actionsToPB(causeID string, actions []analysis.RecommendedAction) ([]*mdafv
 		}
 		out = append(out, &mdafv1.RecommendedAction{
 			Code:       a.Code,
-			Priority:   a.Priority,
 			MoInstance: a.MOInstance,
-			Path:       a.Path,
 			Op:         a.Op,
 			Value:      value,
 		})

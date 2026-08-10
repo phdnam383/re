@@ -406,20 +406,15 @@ type RootCause struct {
 
 // RecommendedAction is a change proposed to remedy a root cause.
 //
-// The engine only proposes; nothing here is executed. MOInstance and Path
-// address the managed object and the field within its configuration, and Value
-// is whatever JSON value the operation needs — a number for a replica count, a
+// The engine only proposes; nothing here is executed. MOInstance addresses the
+// managed object the change applies to, Code names the change, and Value is
+// whatever JSON value the operation needs — a number for a replica count, a
 // string for a lifecycle verb — which is why it is typed as any and maps to a
 // protobuf Value on the wire.
 type RecommendedAction struct {
 	Code string `json:"code"`
 
-	// Priority is on a 0..100 scale. It orders actions within the response
-	// and carries no execution semantics.
-	Priority float64 `json:"priority"`
-
 	MOInstance string `json:"mo_instance"`
-	Path       string `json:"path"`
 	Op         string `json:"op"` // ADD | REMOVE | REPLACE
 
 	Value any `json:"value,omitempty"`

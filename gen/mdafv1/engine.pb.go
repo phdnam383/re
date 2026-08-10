@@ -457,9 +457,7 @@ func (x *RootCause) GetActions() []*RecommendedAction {
 type RecommendedAction struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	Priority      float64                `protobuf:"fixed64,2,opt,name=priority,proto3" json:"priority,omitempty"`
 	MoInstance    string                 `protobuf:"bytes,3,opt,name=mo_instance,json=moInstance,proto3" json:"mo_instance,omitempty"`
-	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	Op            string                 `protobuf:"bytes,5,opt,name=op,proto3" json:"op,omitempty"` // ADD | REMOVE | REPLACE
 	Value         *structpb.Value        `protobuf:"bytes,6,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -503,23 +501,9 @@ func (x *RecommendedAction) GetCode() string {
 	return ""
 }
 
-func (x *RecommendedAction) GetPriority() float64 {
-	if x != nil {
-		return x.Priority
-	}
-	return 0
-}
-
 func (x *RecommendedAction) GetMoInstance() string {
 	if x != nil {
 		return x.MoInstance
-	}
-	return ""
-}
-
-func (x *RecommendedAction) GetPath() string {
-	if x != nil {
-		return x.Path
 	}
 	return ""
 }
@@ -707,15 +691,13 @@ const file_engine_proto_rawDesc = "" +
 	"\n" +
 	"confidence\x18\x06 \x01(\x01R\n" +
 	"confidence\x124\n" +
-	"\aactions\x18\a \x03(\v2\x1a.mdaf.v1.RecommendedActionR\aactions\"\xb6\x01\n" +
+	"\aactions\x18\a \x03(\v2\x1a.mdaf.v1.RecommendedActionR\aactions\"\xa2\x01\n" +
 	"\x11RecommendedAction\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1a\n" +
-	"\bpriority\x18\x02 \x01(\x01R\bpriority\x12\x1f\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1f\n" +
 	"\vmo_instance\x18\x03 \x01(\tR\n" +
-	"moInstance\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path\x12\x0e\n" +
+	"moInstance\x12\x0e\n" +
 	"\x02op\x18\x05 \x01(\tR\x02op\x12,\n" +
-	"\x05value\x18\x06 \x01(\v2\x16.google.protobuf.ValueR\x05value\"w\n" +
+	"\x05value\x18\x06 \x01(\v2\x16.google.protobuf.ValueR\x05valueJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bpriorityR\x04path\"w\n" +
 	"\fAnalysisMeta\x12%\n" +
 	"\x0econtext_status\x18\x01 \x01(\tR\rcontextStatus\x12@\n" +
 	"\x0fmissing_context\x18\x02 \x03(\v2\x17.mdaf.v1.MissingContextR\x0emissingContext\"n\n" +

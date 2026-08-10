@@ -20,9 +20,7 @@ rule SIPGWLoadBalancerDown "The I-CSCF load balancer is unavailable" salience 10
         Result.Recommend(
             "rc-sipgw-loadbalancer-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );
@@ -50,9 +48,7 @@ rule SIPGWICSCFDown "The I-CSCF SIP component is unavailable" salience 90 {
         Result.Recommend(
             "rc-sipgw-icscf-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );
@@ -80,9 +76,7 @@ rule SIPGWLogicDown "The SIPGW logic component is unavailable" salience 80 {
         Result.Recommend(
             "rc-sipgw-logic-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_logic.vnfc_cs_logic_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );

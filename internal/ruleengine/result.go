@@ -82,18 +82,11 @@ func (r *Result) Assert(id, category, summary, entity, role string, confidence f
 // The reference must resolve inside the same row. An action whose cause was
 // asserted by a different document would survive that document being discarded
 // and end up recommending a change with nothing left to justify it.
-func (r *Result) Recommend(
-	rootCauseID, code string,
-	priority float64,
-	moInstance, path, op string,
-	value any,
-) {
+func (r *Result) Recommend(rootCauseID, code, moInstance, op string, value any) {
 	causeID := strings.TrimSpace(rootCauseID)
 	action := analysis.RecommendedAction{
 		Code:       strings.TrimSpace(code),
-		Priority:   priority,
 		MOInstance: strings.TrimSpace(moInstance),
-		Path:       strings.TrimSpace(path),
 		Op:         strings.ToUpper(strings.TrimSpace(op)),
 		Value:      value,
 	}
@@ -157,12 +150,8 @@ func validateAction(causeID string, a analysis.RecommendedAction) error {
 		return fmt.Errorf("action for root cause %q: code is empty", causeID)
 	case a.MOInstance == "":
 		return fmt.Errorf("action %q: mo instance is empty", a.Code)
-	case a.Path == "":
-		return fmt.Errorf("action %q: path is empty", a.Code)
 	case !validOps[a.Op]:
 		return fmt.Errorf("action %q: op %q is not ADD, REMOVE or REPLACE", a.Code, a.Op)
-	case a.Priority < 0 || a.Priority > 100:
-		return fmt.Errorf("action %q: priority %v is outside 0..100", a.Code, a.Priority)
 	}
 	return nil
 }
@@ -188,10 +177,9 @@ type causeSet struct {
 type causeEntry struct {
 	cause analysis.RootCause
 
-	// actionIdx maps an action fingerprint to its position in cause.Actions,
-	// so a repeat is found without rescanning and the highest priority anyone
-	// asked for can be raised in place.
-	actionIdx map[string]int
+	// seen holds the fingerprint of every action already attached, so a repeat
+	// is recognised without rescanning the slice.
+	seen map[string]bool
 }
 
 func newCauseSet() *causeSet {
@@ -209,11 +197,11 @@ func (s *causeSet) clone() *causeSet {
 	for id, e := range s.byID {
 		c := e.cause
 		c.Actions = append([]analysis.RecommendedAction(nil), e.cause.Actions...)
-		idx := make(map[string]int, len(e.actionIdx))
-		for k, v := range e.actionIdx {
-			idx[k] = v
+		seen := make(map[string]bool, len(e.seen))
+		for k := range e.seen {
+			seen[k] = true
 		}
-		out.byID[id] = &causeEntry{cause: c, actionIdx: idx}
+		out.byID[id] = &causeEntry{cause: c, seen: seen}
 	}
 	return out
 }
@@ -229,7 +217,7 @@ func (s *causeSet) clone() *causeSet {
 func (s *causeSet) assert(c analysis.RootCause) error {
 	existing, ok := s.byID[c.ID]
 	if !ok {
-		entry := &causeEntry{cause: c, actionIdx: map[string]int{}}
+		entry := &causeEntry{cause: c, seen: map[string]bool{}}
 		entry.cause.Actions = nil
 		s.byID[c.ID] = entry
 		s.order = append(s.order, c.ID)
@@ -269,17 +257,13 @@ func (s *causeSet) recommend(causeID string, a analysis.RecommendedAction) error
 	if err != nil {
 		return err
 	}
-	if i, dup := entry.actionIdx[fp]; dup {
-		// Same change requested twice. Keep the highest priority anyone asked
-		// for: the operator is being told how urgent this is, and the rule
-		// that considered it most urgent had a reason the others did not
-		// contradict — they proposed the identical change.
-		if a.Priority > entry.cause.Actions[i].Priority {
-			entry.cause.Actions[i].Priority = a.Priority
-		}
+	if entry.seen[fp] {
+		// Same change requested twice. Two rules proposing the identical
+		// change is corroboration, exactly as it is for a root cause, so the
+		// repeat is absorbed rather than listed again.
 		return nil
 	}
-	entry.actionIdx[fp] = len(entry.cause.Actions)
+	entry.seen[fp] = true
 	entry.cause.Actions = append(entry.cause.Actions, a)
 	return nil
 }
@@ -311,12 +295,13 @@ func (s *causeSet) finalize() []analysis.RootCause {
 	return out
 }
 
-// sortActions orders actions by descending priority.
+// sortActions orders actions by code, then managed object, operation and
+// value.
 //
-// The tie-breaks exist purely for determinism: the response is persisted and
-// replayed, so two actions a rule set stated at equal priority must not swap
-// places between runs. The value is the last key because two actions can be
-// identical in every other field and still be different proposals.
+// Nothing ranks actions against each other, so the order exists purely for
+// determinism: the response is persisted and replayed, and two actions must
+// not swap places between runs. The value is the last key because two actions
+// can be identical in every other field and still be different proposals.
 func sortActions(actions []analysis.RecommendedAction) []analysis.RecommendedAction {
 	if len(actions) < 2 {
 		return actions
@@ -324,17 +309,11 @@ func sortActions(actions []analysis.RecommendedAction) []analysis.RecommendedAct
 	out := append([]analysis.RecommendedAction(nil), actions...)
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]
-		if a.Priority != b.Priority {
-			return a.Priority > b.Priority
-		}
 		if a.Code != b.Code {
 			return a.Code < b.Code
 		}
 		if a.MOInstance != b.MOInstance {
 			return a.MOInstance < b.MOInstance
-		}
-		if a.Path != b.Path {
-			return a.Path < b.Path
 		}
 		if a.Op != b.Op {
 			return a.Op < b.Op
@@ -344,15 +323,15 @@ func sortActions(actions []analysis.RecommendedAction) []analysis.RecommendedAct
 	return out
 }
 
-// actionFingerprint identifies the change an action proposes, priority
-// excluded. Priority is how strongly it is proposed, not what is proposed, so
-// two rules asking for the same change at different urgencies are one action.
+// actionFingerprint identifies the change an action proposes. Every field of
+// an action takes part: what is left is exactly what is proposed, so two
+// actions with the same fingerprint are the same proposal.
 func actionFingerprint(a analysis.RecommendedAction) (string, error) {
 	value, err := json.Marshal(a.Value)
 	if err != nil {
 		return "", fmt.Errorf("action %q: value is not representable as JSON: %w", a.Code, err)
 	}
-	return strings.Join([]string{a.Code, a.MOInstance, a.Path, a.Op, string(value)}, "\x00"), nil
+	return strings.Join([]string{a.Code, a.MOInstance, a.Op, string(value)}, "\x00"), nil
 }
 
 // canonicalValue renders a value for ordering only. An unmarshalable value

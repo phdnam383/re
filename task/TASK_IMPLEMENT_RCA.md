@@ -141,20 +141,14 @@ type Facts struct {
 ```go
 Assert(id, category, summary, entity, role string, confidence float64)
 
-Recommend(
-    rootCauseID, code string,
-    priority float64,
-    moInstance, path, op string,
-    value any,
-)
+Recommend(rootCauseID, code, moInstance, op string, value any)
 ```
 
 - Validate chặt:
   - Root-cause ID, category, summary và entity không rỗng.
   - Role thuộc `PRIMARY | CONTRIBUTING | SUSPECTED`.
   - Confidence thuộc `0..1`.
-  - Action code, root-cause ID, MO instance và path không rỗng.
-  - Priority thuộc `0..100`.
+  - Action code, root-cause ID và MO instance không rỗng.
   - Operation thuộc `ADD | REMOVE | REPLACE`.
   - Action chỉ được tham chiếu root cause đã được khai báo trong chính DB row đó.
 - Validation error được giữ trong sink; sau execution, row chuyển thành `FAILED`. Không clamp và không âm thầm bỏ output sai.
@@ -164,9 +158,9 @@ Recommend(
 - Root-cause ID trùng:
   - Metadata giống nhau thì idempotent và union actions.
   - Metadata khác nhau là conflict; row mới bị discard/FAILED.
-- Action deduplicate theo `(code, mo_instance, path, op, canonical JSON value)`; cùng action nhưng priority khác nhau giữ priority cao nhất.
+- Action deduplicate theo `(code, mo_instance, op, canonical JSON value)`; action trùng nhau được hấp thụ, không liệt kê lại.
 - Root causes giữ thứ tự fire đầu tiên.
-- Actions sort priority giảm dần, tie-break theo code, MO instance, path và operation.
+- Actions sort theo code, tie-break theo MO instance, operation và canonical JSON value.
 
 ## 5. Runner, timeout và status
 
@@ -197,7 +191,7 @@ Recommend(
 - Result tests:
   - Field/range/enum validation.
   - Action tham chiếu cause chưa tồn tại.
-  - Idempotent duplicate, metadata conflict và action dedup/max priority.
+  - Idempotent duplicate, metadata conflict và action dedup.
   - Root-cause/action deterministic ordering.
 - GRL runtime/cache tests:
   - Nhiều matching rules trong cùng document fire đúng một lần theo salience.

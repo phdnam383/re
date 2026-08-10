@@ -146,11 +146,8 @@ func TestScenarioSIPGWBlamesEveryTerminatedComponent(t *testing.T) {
 		}
 		a := c.Actions[0]
 		if a.Code != "RESTART_VNFC" || a.MOInstance != w.entity ||
-			a.Path != "lifecycle.action" || a.Op != analysis.OpReplace || a.Value != "RESTART" {
+			a.Op != analysis.OpReplace || a.Value != "RESTART" {
 			t.Errorf("root cause %s action = %+v", c.ID, a)
-		}
-		if a.Priority != 90 {
-			t.Errorf("root cause %s action priority = %v, want 90", c.ID, a.Priority)
 		}
 	}
 }
@@ -212,7 +209,8 @@ func TestScenarioTPSCombinesDegradationAndConfiguration(t *testing.T) {
 	// configuration value are both numbers, and the response maps them to a
 	// protobuf Value.
 	restore := got.RootCauses[0].Actions[0]
-	if restore.Code != "RESTORE_REPLICAS" || restore.Path != "replicas" || restore.Priority != 100 {
+	if restore.Code != "RESTORE_REPLICAS" || restore.MOInstance != "ims.vdu_sb_logic" ||
+		restore.Op != analysis.OpReplace {
 		t.Errorf("restore action = %+v", restore)
 	}
 	if v, ok := restore.Value.(int64); !ok || v != 3 {

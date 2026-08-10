@@ -20,9 +20,7 @@ rule DIAGWLoadBalancerDown "The DIAGW load balancer is unavailable" salience 100
         Result.Recommend(
             "rc-diagw-loadbalancer-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );
@@ -50,9 +48,7 @@ rule DIAGWDiameterRouterDown "The DIAGW Diameter router is unavailable" salience
         Result.Recommend(
             "rc-diagw-diameter-router-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );
@@ -80,9 +76,7 @@ rule DIAGWLogicDown "The DIAGW routing logic is unavailable" salience 80 {
         Result.Recommend(
             "rc-diagw-logic-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );
@@ -110,9 +104,7 @@ rule DIAGWHSSConnectorDown "The DIAGW HSS connector is unavailable" salience 70 
         Result.Recommend(
             "rc-diagw-hss-connector-down",
             "RESTART_VNFC",
-            90.0,
             "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1",
-            "lifecycle.action",
             "REPLACE",
             "RESTART"
         );

@@ -210,8 +210,8 @@ func fullResult() analysis.AnalysisResult {
 				ID: "rc-a", Category: "SIPGW_DOWN", Summary: "first", Entity: "ims.a",
 				Role: analysis.RolePrimary, Confidence: 0.55,
 				Actions: []analysis.RecommendedAction{
-					{Code: "RESTART_VNFC", Priority: 90, MOInstance: "ims.a", Path: "lifecycle.action", Op: analysis.OpReplace, Value: "RESTART"},
-					{Code: "SET_CONFIG", Priority: 80, MOInstance: "ims.a", Path: "k", Op: analysis.OpReplace, Value: 3},
+					{Code: "RESTART_VNFC", MOInstance: "ims.a", Op: analysis.OpReplace, Value: "RESTART"},
+					{Code: "SET_CONFIG", MOInstance: "ims.a", Op: analysis.OpReplace, Value: 3},
 				},
 			},
 			{
@@ -265,9 +265,8 @@ func TestResponseToPBMapsEverything(t *testing.T) {
 	if len(actions) != 2 {
 		t.Fatalf("actions = %d, want 2", len(actions))
 	}
-	if actions[0].GetCode() != "RESTART_VNFC" || actions[0].GetPriority() != 90 ||
-		actions[0].GetMoInstance() != "ims.a" || actions[0].GetPath() != "lifecycle.action" ||
-		actions[0].GetOp() != analysis.OpReplace {
+	if actions[0].GetCode() != "RESTART_VNFC" ||
+		actions[0].GetMoInstance() != "ims.a" || actions[0].GetOp() != analysis.OpReplace {
 		t.Errorf("action = %+v", actions[0])
 	}
 	if actions[0].GetValue().GetStringValue() != "RESTART" {

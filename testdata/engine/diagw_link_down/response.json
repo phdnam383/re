@@ -11,8 +11,6 @@
             "code": "RESTART_VNFC",
             "moInstance": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
             "op": "REPLACE",
-            "path": "lifecycle.action",
-            "priority": 90,
             "value": "RESTART"
           }
         ],
@@ -29,8 +27,6 @@
             "code": "RESTART_VNFC",
             "moInstance": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
             "op": "REPLACE",
-            "path": "lifecycle.action",
-            "priority": 90,
             "value": "RESTART"
           }
         ],
@@ -47,8 +43,6 @@
             "code": "RESTART_VNFC",
             "moInstance": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
             "op": "REPLACE",
-            "path": "lifecycle.action",
-            "priority": 90,
             "value": "RESTART"
           }
         ],

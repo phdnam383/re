@@ -11,9 +11,7 @@
       "actions": [
         {
           "code": "RESTART_VNFC",
-          "priority": 90,
           "mo_instance": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-          "path": "lifecycle.action",
           "op": "REPLACE",
           "value": "RESTART"
         }
@@ -29,9 +27,7 @@
       "actions": [
         {
           "code": "RESTART_VNFC",
-          "priority": 90,
           "mo_instance": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
-          "path": "lifecycle.action",
           "op": "REPLACE",
           "value": "RESTART"
         }
@@ -47,9 +43,7 @@
       "actions": [
         {
           "code": "RESTART_VNFC",
-          "priority": 90,
           "mo_instance": "ims.vdu_cs_logic.vnfc_cs_logic_1",
-          "path": "lifecycle.action",
           "op": "REPLACE",
           "value": "RESTART"
         }

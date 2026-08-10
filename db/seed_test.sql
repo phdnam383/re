@@ -166,45 +166,45 @@ INSERT INTO rca_rule (name, description, rule_content, salience, enabled) VALUES
 ('link_to_sipgw_down', 'RCA and actions for LINK_TO_PEER_SIPGW_DOWN', $grl$
 rule SIPGWLoadBalancerDown "The I-CSCF load balancer is unavailable" salience 100 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_sip_core.vnfc_sb_sip_core_1", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1") && Ctx.VNFC.IsDown("ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1")
- then Result.Assert("rc-sipgw-loadbalancer-down", "SIPGW_DOWN", "I-CSCF load balancer is TERMINATED", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-loadbalancer-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-sipgw-loadbalancer-down", "SIPGW_DOWN", "I-CSCF load balancer is TERMINATED", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-loadbalancer-down", "RESTART_VNFC", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "REPLACE", "RESTART");
 }
 rule SIPGWICSCFDown "The I-CSCF SIP component is unavailable" salience 90 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_sip_core.vnfc_sb_sip_core_1", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1") && Ctx.VNFC.IsDown("ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1")
- then Result.Assert("rc-sipgw-icscf-down", "SIPGW_DOWN", "I-CSCF SIP component is TERMINATED", "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-icscf-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-sipgw-icscf-down", "SIPGW_DOWN", "I-CSCF SIP component is TERMINATED", "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-icscf-down", "RESTART_VNFC", "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", "REPLACE", "RESTART");
 }
 rule SIPGWLogicDown "The SIPGW logic component is unavailable" salience 80 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_sip_core.vnfc_sb_sip_core_1", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1") && Ctx.VNFC.IsDown("ims.vdu_cs_logic.vnfc_cs_logic_1")
- then Result.Assert("rc-sipgw-logic-down", "SIPGW_DOWN", "SIPGW logic component is TERMINATED", "ims.vdu_cs_logic.vnfc_cs_logic_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-logic-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_logic.vnfc_cs_logic_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-sipgw-logic-down", "SIPGW_DOWN", "SIPGW logic component is TERMINATED", "ims.vdu_cs_logic.vnfc_cs_logic_1", "PRIMARY", 0.35); Result.Recommend("rc-sipgw-logic-down", "RESTART_VNFC", "ims.vdu_cs_logic.vnfc_cs_logic_1", "REPLACE", "RESTART");
 }
 $grl$, 100, TRUE),
 
 ('link_to_diagw_down', 'RCA and actions for LINK_TO_PEER_DIAGW_DOWN', $grl$
 rule DIAGWLoadBalancerDown "The DIAGW load balancer is unavailable" salience 100 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1") && Ctx.VNFC.IsDown("ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1")
- then Result.Assert("rc-diagw-loadbalancer-down", "DIAGW_DOWN", "DIAGW load balancer is TERMINATED", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "PRIMARY", 0.55); Result.Recommend("rc-diagw-loadbalancer-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-diagw-loadbalancer-down", "DIAGW_DOWN", "DIAGW load balancer is TERMINATED", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "PRIMARY", 0.55); Result.Recommend("rc-diagw-loadbalancer-down", "RESTART_VNFC", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "REPLACE", "RESTART");
 }
 rule DIAGWDiameterRouterDown "The DIAGW Diameter router is unavailable" salience 90 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1") && Ctx.VNFC.IsDown("ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1")
- then Result.Assert("rc-diagw-diameter-router-down", "DIAGW_DOWN", "DIAGW Diameter router is TERMINATED", "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-diameter-router-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-diagw-diameter-router-down", "DIAGW_DOWN", "DIAGW Diameter router is TERMINATED", "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-diameter-router-down", "RESTART_VNFC", "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1", "REPLACE", "RESTART");
 }
 rule DIAGWLogicDown "The DIAGW routing logic is unavailable" salience 80 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1") && Ctx.VNFC.IsDown("ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1")
- then Result.Assert("rc-diagw-logic-down", "DIAGW_DOWN", "DIAGW routing logic is TERMINATED", "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-logic-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-diagw-logic-down", "DIAGW_DOWN", "DIAGW routing logic is TERMINATED", "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-logic-down", "RESTART_VNFC", "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1", "REPLACE", "RESTART");
 }
 rule DIAGWHSSConnectorDown "The DIAGW HSS connector is unavailable" salience 70 {
  when Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") && Ctx.Link.IsDown("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1") && Ctx.VNFC.IsDown("ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1")
- then Result.Assert("rc-diagw-hss-connector-down", "DIAGW_DOWN", "DIAGW HSS connector is TERMINATED", "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-hss-connector-down", "RESTART_VNFC", 90.0, "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1", "lifecycle.action", "REPLACE", "RESTART");
+ then Result.Assert("rc-diagw-hss-connector-down", "DIAGW_DOWN", "DIAGW HSS connector is TERMINATED", "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1", "PRIMARY", 0.35); Result.Recommend("rc-diagw-hss-connector-down", "RESTART_VNFC", "ims.vdu_cs_hss_connector.vnfc_cs_hss_connector_1", "REPLACE", "RESTART");
 }
 $grl$, 100, TRUE),
 
 ('tps_overloaded', 'RCA and actions for TPS_OVERLOADED', $grl$
 rule TPSReplicaDegradation "Replica degradation concentrates TPS load" salience 100 {
  when Ctx.Alerts.HasCause("THRESHOLD_CROSSING") && Ctx.Alerts.OverloadCount("ims.vdu_sb_logic.vnfc_sb_logic_1") > 1 && Ctx.VDU.IsDegraded("ims.vdu_sb_logic")
- then Result.Assert("rc-tps-replica-degradation", "REPLICA_DEGRADATION", "Only one of three sb_logic replicas is ready while TPS load is high", "ims.vdu_sb_logic", "PRIMARY", 0.55); Result.Recommend("rc-tps-replica-degradation", "RESTORE_REPLICAS", 100.0, "ims.vdu_sb_logic", "replicas", "REPLACE", 3);
+ then Result.Assert("rc-tps-replica-degradation", "REPLICA_DEGRADATION", "Only one of three sb_logic replicas is ready while TPS load is high", "ims.vdu_sb_logic", "PRIMARY", 0.55); Result.Recommend("rc-tps-replica-degradation", "RESTORE_REPLICAS", "ims.vdu_sb_logic", "REPLACE", 3);
 }
 rule TPSHighLogFileConfiguration "High log-file count increases RAM usage" salience 90 {
  when Ctx.Alerts.HasCause("THRESHOLD_CROSSING") && Ctx.Alerts.HasOverload("ims.vdu_sb_logic.vnfc_sb_logic_1") && Ctx.Configuration.Has("ims.vdu_sb_logic.vnfc_sb_logic_1", "number_of_log_file") && Ctx.Configuration.GetFloat("ims.vdu_sb_logic.vnfc_sb_logic_1", "number_of_log_file") >= 3.0
- then Result.Assert("rc-tps-high-log-file-config", "HIGH_LOG_FILE_CONFIG", "number_of_log_file is too high and increases RAM consumption", "ims.vdu_sb_logic.vnfc_sb_logic_1", "CONTRIBUTING", 0.30); Result.Recommend("rc-tps-high-log-file-config", "SET_CONFIG", 80.0, "ims.vdu_sb_logic.vnfc_sb_logic_1", "number_of_log_file", "REPLACE", 3);
+ then Result.Assert("rc-tps-high-log-file-config", "HIGH_LOG_FILE_CONFIG", "number_of_log_file is too high and increases RAM consumption", "ims.vdu_sb_logic.vnfc_sb_logic_1", "CONTRIBUTING", 0.30); Result.Recommend("rc-tps-high-log-file-config", "SET_CONFIG", "ims.vdu_sb_logic.vnfc_sb_logic_1", "REPLACE", 3);
 }
 $grl$, 100, TRUE)
 ON CONFLICT (name) DO UPDATE SET

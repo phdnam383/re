@@ -11,9 +11,7 @@
       "actions": [
         {
           "code": "RESTORE_REPLICAS",
-          "priority": 100,
           "mo_instance": "ims.vdu_sb_logic",
-          "path": "replicas",
           "op": "REPLACE",
           "value": 3
         }
@@ -29,9 +27,7 @@
       "actions": [
         {
           "code": "SET_CONFIG",
-          "priority": 80,
           "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1",
-          "path": "number_of_log_file",
           "op": "REPLACE",
           "value": 3
         }

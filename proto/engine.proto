@@ -59,10 +59,13 @@ message RootCause {
 }
 
 message RecommendedAction {
+  // 2 was priority, 4 was path. The numbers stay retired so a client built
+  // against the old shape cannot have an unrelated field decoded into them.
+  reserved 2, 4;
+  reserved "priority", "path";
+
   string code           = 1;
-  double priority       = 2;
   string mo_instance    = 3;
-  string path           = 4;
   string op             = 5; // ADD | REMOVE | REPLACE
   google.protobuf.Value value = 6;
 }

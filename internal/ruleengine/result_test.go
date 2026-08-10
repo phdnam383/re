@@ -14,7 +14,7 @@ func assertValid(r *Result) {
 }
 
 func recommendValid(r *Result) {
-	r.Recommend("rc-1", "RESTART_VNFC", 90, "ims.a", "lifecycle.action", analysis.OpReplace, "RESTART")
+	r.Recommend("rc-1", "RESTART_VNFC", "ims.a", analysis.OpReplace, "RESTART")
 }
 
 // --- assert validation ---------------------------------------------------
@@ -131,42 +131,29 @@ func TestRecommendValidation(t *testing.T) {
 		},
 		{
 			name:      "empty root cause id",
-			recommend: func(r *Result) { r.Recommend("", "C", 50, "ims.a", "p", analysis.OpAdd, 1) },
+			recommend: func(r *Result) { r.Recommend("", "C", "ims.a", analysis.OpAdd, 1) },
 			wantErr:   "root cause id is empty",
 		},
 		{
 			name:      "empty code",
-			recommend: func(r *Result) { r.Recommend("rc-1", "", 50, "ims.a", "p", analysis.OpAdd, 1) },
+			recommend: func(r *Result) { r.Recommend("rc-1", "", "ims.a", analysis.OpAdd, 1) },
 			wantErr:   "code is empty",
 		},
 		{
 			name:      "empty mo instance",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", 50, "", "p", analysis.OpAdd, 1) },
+			recommend: func(r *Result) { r.Recommend("rc-1", "C", "", analysis.OpAdd, 1) },
 			wantErr:   "mo instance is empty",
 		},
 		{
-			name:      "empty path",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", 50, "ims.a", "", analysis.OpAdd, 1) },
-			wantErr:   "path is empty",
-		},
-		{
 			name:      "unknown op",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", 50, "ims.a", "p", "PATCH", 1) },
+			recommend: func(r *Result) { r.Recommend("rc-1", "C", "ims.a", "PATCH", 1) },
 			wantErr:   "op",
 		},
 		{
-			name:      "priority above one hundred",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", 101, "ims.a", "p", analysis.OpAdd, 1) },
-			wantErr:   "priority",
-		},
-		{
-			name:      "negative priority",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", -1, "ims.a", "p", analysis.OpAdd, 1) },
-			wantErr:   "priority",
-		},
-		{
-			name:      "priority at the bounds is valid",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", 0, "ims.a", "p", analysis.OpRemove, nil) },
+			// REMOVE takes nothing away with it: the absent value is the whole
+			// proposal, so a nil value is valid rather than a missing field.
+			name:      "remove without a value is valid",
+			recommend: func(r *Result) { r.Recommend("rc-1", "C", "ims.a", analysis.OpRemove, nil) },
 		},
 	}
 
@@ -205,7 +192,7 @@ func TestRecommendRequiresAnAssertedCause(t *testing.T) {
 	// asserted by a different one would survive that document being discarded.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-does-not-exist", "RESTART_VNFC", 90, "ims.a", "p", analysis.OpReplace, "RESTART")
+	r.Recommend("rc-does-not-exist", "RESTART_VNFC", "ims.a", analysis.OpReplace, "RESTART")
 
 	err := r.Err()
 	if err == nil {
@@ -319,25 +306,20 @@ func TestAssertConflictingMetadataIsAnError(t *testing.T) {
 
 // --- action deduplication ------------------------------------------------
 
-func TestRecommendDeduplicatesAndKeepsMaxPriority(t *testing.T) {
+func TestRecommendDeduplicatesIdenticalActions(t *testing.T) {
+	// Several rules asking for the identical change is corroboration, exactly
+	// as it is for a root cause, so it is one action rather than three.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-1", "SET_CONFIG", 40, "ims.a", "k", analysis.OpReplace, 3)
-	r.Recommend("rc-1", "SET_CONFIG", 80, "ims.a", "k", analysis.OpReplace, 3)
-	r.Recommend("rc-1", "SET_CONFIG", 60, "ims.a", "k", analysis.OpReplace, 3)
+	r.Recommend("rc-1", "SET_CONFIG", "ims.a", analysis.OpReplace, 3)
+	r.Recommend("rc-1", "SET_CONFIG", "ims.a", analysis.OpReplace, 3)
+	r.Recommend("rc-1", "SET_CONFIG", "ims.a", analysis.OpReplace, 3)
 
 	if err := r.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
 	}
-	actions := r.RootCauses()[0].Actions
-	if len(actions) != 1 {
-		t.Fatalf("actions = %d, want 1", len(actions))
-	}
-	// Priority is how strongly a change is proposed, not what is proposed. The
-	// rule that considered it most urgent is not contradicted by the others —
-	// they asked for the identical change.
-	if actions[0].Priority != 80 {
-		t.Errorf("priority = %v, want 80", actions[0].Priority)
+	if got := len(r.RootCauses()[0].Actions); got != 1 {
+		t.Fatalf("actions = %d, want 1", got)
 	}
 }
 
@@ -345,8 +327,8 @@ func TestRecommendTreatsDifferentValuesAsDifferentActions(t *testing.T) {
 	// Same field, different target value: two genuinely different proposals.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-1", "SET_CONFIG", 80, "ims.a", "k", analysis.OpReplace, 3)
-	r.Recommend("rc-1", "SET_CONFIG", 80, "ims.a", "k", analysis.OpReplace, 5)
+	r.Recommend("rc-1", "SET_CONFIG", "ims.a", analysis.OpReplace, 3)
+	r.Recommend("rc-1", "SET_CONFIG", "ims.a", analysis.OpReplace, 5)
 
 	if err := r.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
@@ -358,17 +340,16 @@ func TestRecommendTreatsDifferentValuesAsDifferentActions(t *testing.T) {
 
 func TestRecommendDistinguishesEveryFingerprintField(t *testing.T) {
 	base := func(r *Result) {
-		r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
+		r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, 1)
 	}
 	variants := []struct {
 		name string
 		fn   func(r *Result)
 	}{
-		{"code", func(r *Result) { r.Recommend("rc-1", "OTHER", 50, "ims.a", "p", analysis.OpReplace, 1) }},
-		{"mo instance", func(r *Result) { r.Recommend("rc-1", "CODE", 50, "ims.b", "p", analysis.OpReplace, 1) }},
-		{"path", func(r *Result) { r.Recommend("rc-1", "CODE", 50, "ims.a", "q", analysis.OpReplace, 1) }},
-		{"op", func(r *Result) { r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpAdd, 1) }},
-		{"value", func(r *Result) { r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, 2) }},
+		{"code", func(r *Result) { r.Recommend("rc-1", "OTHER", "ims.a", analysis.OpReplace, 1) }},
+		{"mo instance", func(r *Result) { r.Recommend("rc-1", "CODE", "ims.b", analysis.OpReplace, 1) }},
+		{"op", func(r *Result) { r.Recommend("rc-1", "CODE", "ims.a", analysis.OpAdd, 1) }},
+		{"value", func(r *Result) { r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, 2) }},
 	}
 
 	for _, v := range variants {
@@ -395,8 +376,8 @@ func TestActionsWithEquivalentJSONValuesAreOneAction(t *testing.T) {
 	// JSON either way.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, 3)
-	r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, float64(3))
+	r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, 3)
+	r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, float64(3))
 
 	if err := r.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
@@ -411,7 +392,7 @@ func TestRecommendRejectsUnrepresentableValue(t *testing.T) {
 	// as an error fails the row rather than shipping an action nobody can read.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, make(chan int))
+	r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, make(chan int))
 
 	err := r.Err()
 	if err == nil {
@@ -449,40 +430,35 @@ func TestRootCausesKeepFirstAssertionOrder(t *testing.T) {
 	}
 }
 
-func TestActionsSortByPriorityThenTieBreaks(t *testing.T) {
+func TestActionsSortByCodeThenTieBreaks(t *testing.T) {
 	r := NewResult()
 	assertValid(r)
-	// Declared out of order, and with a full set of ties so every tie-break
-	// key is exercised.
-	r.Recommend("rc-1", "B_CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
-	r.Recommend("rc-1", "A_CODE", 50, "ims.b", "p", analysis.OpReplace, 1)
-	r.Recommend("rc-1", "A_CODE", 50, "ims.a", "q", analysis.OpReplace, 1)
-	r.Recommend("rc-1", "A_CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
-	r.Recommend("rc-1", "A_CODE", 50, "ims.a", "p", analysis.OpAdd, 1)
-	r.Recommend("rc-1", "HIGH", 90, "ims.z", "z", analysis.OpRemove, nil)
+	// Declared out of order, and with a full set of ties so every sort key is
+	// exercised.
+	r.Recommend("rc-1", "B_CODE", "ims.a", analysis.OpReplace, 1)
+	r.Recommend("rc-1", "A_CODE", "ims.b", analysis.OpReplace, 1)
+	r.Recommend("rc-1", "A_CODE", "ims.a", analysis.OpReplace, 1)
+	r.Recommend("rc-1", "A_CODE", "ims.a", analysis.OpAdd, 1)
+	r.Recommend("rc-1", "HIGH", "ims.z", analysis.OpRemove, nil)
 
 	if err := r.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
 	}
 
 	actions := r.RootCauses()[0].Actions
-	type key struct {
-		code, mo, path, op string
-		priority           float64
-	}
+	type key struct{ code, mo, op string }
 	want := []key{
-		{"HIGH", "ims.z", "z", analysis.OpRemove, 90},
-		{"A_CODE", "ims.a", "p", analysis.OpAdd, 50},
-		{"A_CODE", "ims.a", "p", analysis.OpReplace, 50},
-		{"A_CODE", "ims.a", "q", analysis.OpReplace, 50},
-		{"A_CODE", "ims.b", "p", analysis.OpReplace, 50},
-		{"B_CODE", "ims.a", "p", analysis.OpReplace, 50},
+		{"A_CODE", "ims.a", analysis.OpAdd},
+		{"A_CODE", "ims.a", analysis.OpReplace},
+		{"A_CODE", "ims.b", analysis.OpReplace},
+		{"B_CODE", "ims.a", analysis.OpReplace},
+		{"HIGH", "ims.z", analysis.OpRemove},
 	}
 	if len(actions) != len(want) {
 		t.Fatalf("actions = %d, want %d", len(actions), len(want))
 	}
 	for i, w := range want {
-		got := key{actions[i].Code, actions[i].MOInstance, actions[i].Path, actions[i].Op, actions[i].Priority}
+		got := key{actions[i].Code, actions[i].MOInstance, actions[i].Op}
 		if got != w {
 			t.Errorf("action %d = %+v, want %+v", i, got, w)
 		}
@@ -495,8 +471,8 @@ func TestActionsWithIdenticalKeysAreOrderedByValue(t *testing.T) {
 	// places between runs of a persisted, replayed response.
 	r := NewResult()
 	assertValid(r)
-	r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, 9)
-	r.Recommend("rc-1", "CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
+	r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, 9)
+	r.Recommend("rc-1", "CODE", "ims.a", analysis.OpReplace, 1)
 
 	actions := r.RootCauses()[0].Actions
 	if len(actions) != 2 {
@@ -512,11 +488,11 @@ func TestActionsWithIdenticalKeysAreOrderedByValue(t *testing.T) {
 func TestCauseSetMergeIsIdempotentAndUnionsActions(t *testing.T) {
 	first := NewResult()
 	first.Assert("rc-1", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-	first.Recommend("rc-1", "ONE", 50, "ims.a", "p", analysis.OpAdd, 1)
+	first.Recommend("rc-1", "ONE", "ims.a", analysis.OpAdd, 1)
 
 	second := NewResult()
 	second.Assert("rc-1", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-	second.Recommend("rc-1", "TWO", 60, "ims.a", "p", analysis.OpAdd, 2)
+	second.Recommend("rc-1", "TWO", "ims.a", analysis.OpAdd, 2)
 
 	merged := newCauseSet()
 	if err := merged.mergeFrom(first.causes); err != nil {
@@ -557,7 +533,7 @@ func TestCauseSetCloneIsIndependent(t *testing.T) {
 	original := newCauseSet()
 	src := NewResult()
 	src.Assert("rc-1", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-	src.Recommend("rc-1", "ONE", 50, "ims.a", "p", analysis.OpAdd, 1)
+	src.Recommend("rc-1", "ONE", "ims.a", analysis.OpAdd, 1)
 	if err := original.mergeFrom(src.causes); err != nil {
 		t.Fatal(err)
 	}
@@ -569,7 +545,7 @@ func TestCauseSetCloneIsIndependent(t *testing.T) {
 	// causes its own document declared.
 	extra := NewResult()
 	extra.Assert("rc-1", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-	extra.Recommend("rc-1", "TWO", 60, "ims.a", "p", analysis.OpAdd, 2)
+	extra.Recommend("rc-1", "TWO", "ims.a", analysis.OpAdd, 2)
 	extra.Assert("rc-2", "C", "s", "ims.b", analysis.RolePrimary, 0.5)
 	if err := extra.Err(); err != nil {
 		t.Fatalf("second row sink: %v", err)

@@ -254,15 +254,15 @@ func TestAConflictingRowIsDiscardedWhole(t *testing.T) {
 
 func TestCorroboratingRowsUnionTheirActions(t *testing.T) {
 	rt := newScriptedRuntime()
-	same := func(code string, priority float64) func(*Result) error {
+	same := func(code string) func(*Result) error {
 		return func(out *Result) error {
 			out.Assert("rc-shared", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-			out.Recommend("rc-shared", code, priority, "ims.a", "p", analysis.OpReplace, 1)
+			out.Recommend("rc-shared", code, "ims.a", analysis.OpReplace, 1)
 			return nil
 		}
 	}
-	rt.script["first"] = same("ONE", 50)
-	rt.script["second"] = same("TWO", 60)
+	rt.script["first"] = same("ONE")
+	rt.script["second"] = same("TWO")
 
 	e := newEngine(t, Options{
 		Rules:   fakeRepo{rules: []analysis.RuleDefinition{rule("first", 100), rule("second", 90)}},
@@ -556,9 +556,9 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 		rt := newScriptedRuntime()
 		rt.script["a"] = func(out *Result) error {
 			out.Assert("rc-a", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-			out.Recommend("rc-a", "Z_CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
-			out.Recommend("rc-a", "A_CODE", 50, "ims.a", "p", analysis.OpReplace, 1)
-			out.Recommend("rc-a", "HIGH", 90, "ims.a", "p", analysis.OpAdd, 2)
+			out.Recommend("rc-a", "Z_CODE", "ims.a", analysis.OpReplace, 1)
+			out.Recommend("rc-a", "A_CODE", "ims.a", analysis.OpReplace, 1)
+			out.Recommend("rc-a", "HIGH", "ims.a", analysis.OpAdd, 2)
 			return nil
 		}
 		rt.script["b"] = assertOne("rc-b", "ims.b")
@@ -590,7 +590,7 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 			t.Fatalf("run %d produced %s, want %s", i, sb.String(), first)
 		}
 	}
-	if first != "rc-a|HIGH|A_CODE|Z_CODE;rc-b;" {
+	if first != "rc-a|A_CODE|HIGH|Z_CODE;rc-b;" {
 		t.Errorf("output = %s", first)
 	}
 }
