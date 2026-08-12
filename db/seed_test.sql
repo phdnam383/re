@@ -150,11 +150,11 @@ WHERE name IN ('link_to_peer_sipgw_down_0001',
 
 INSERT INTO context_profile (name, description, selector, providers, enabled) VALUES
   ('link_to_peer_sipgw_down_0001', 'Context for the SIPGW Down',
-   '{"probable_causes":["LINK_TO_PEER_SIPGW_DOWN"],"alert_types":["COMMUNICATIONS_ALERT"],"additional_information":{"dst_path":["ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"]}}',
-   '{"vdu":["ims.vdu_sb_sip_core","ims.vdu_cs_loadbalancer_icscf","ims.vdu_cs_sip_icscf","ims.vdu_cs_logic"],"link":[{"src_path":"ims.vdu_sb_sip_core.vnfc_sb_sip_core_1","dst_path":"ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"}]}', TRUE),
+   '{"probable_causes":["LINK_TO_PEER_SIPGW_DOWN"],"alert_types":["COMMUNICATIONS_ALERT"],"additional_information":{"dst_path":[]}}',
+   '{"vdu":["ims.vdu_sb_sip_core","ims.vdu_cs_loadbalancer_icscf","ims.vdu_cs_sip_icscf","ims.vdu_cs_logic"],"link":[{"src_path":"ims.vdu_sb_sip_core","dst_path":"ims.vdu_cs_loadbalancer_icscf"}]}', TRUE),
   ('link_to_peer_diagw_down_0001', 'Context for the DIAGW Down',
-   '{"probable_causes":["LINK_TO_PEER_DIAGW_DOWN"],"alert_types":["COMMUNICATIONS_ALERT"],"additional_information":{"dst_path":["ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1"]}}',
-   '{"vdu":["ims.vdu_sb_diameter_core","ims.vdu_cs_loadbalancer_diagw","ims.vdu_cs_diameter_router","ims.vdu_cs_diag_logic","ims.vdu_cs_hss_connector"],"link":[{"src_path":"ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1","dst_path":"ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1"}]}', TRUE),
+   '{"probable_causes":["LINK_TO_PEER_DIAGW_DOWN"],"alert_types":["COMMUNICATIONS_ALERT"],"additional_information":{"dst_path":[]}}',
+   '{"vdu":["ims.vdu_sb_diameter_core","ims.vdu_cs_loadbalancer_diagw","ims.vdu_cs_diameter_router","ims.vdu_cs_diag_logic","ims.vdu_cs_hss_connector"],"link":[{"src_path":"ims.vdu_sb_diameter_core","dst_path":"ims.vdu_cs_loadbalancer_diagw"}]}', TRUE),
   ('tps_overloaded_0001', 'Context for the TPS Overloaded',
    '{"probable_causes":["THRESHOLD_CROSSING"],"alert_types":["QUALITY_OF_SERVICE_ALERT"],"additional_information":{"metric":["overload_ram"]}}',
    '{"vdu":["ims.vdu_sb_logic"],"configuration":[{"path":"ims.vdu_sb_logic.vnfc_sb_logic_1","key":"number_of_log_file","url":"http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/num_of_log_file"}]}', TRUE);

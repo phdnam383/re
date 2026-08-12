@@ -32,6 +32,10 @@ var (
 	seedTime = time.Date(2026, 6, 18, 0, 0, 0, 0, time.UTC)
 	// diagwLinkTime is the DIAGW link's own seeded timestamp.
 	diagwLinkTime = time.Date(2026, 6, 18, 1, 0, 0, 0, time.UTC)
+	// The second instance of each core VDU carries its own seeded timestamp,
+	// one second after the first.
+	sipgwLink2Time = time.Date(2026, 6, 18, 0, 0, 1, 0, time.UTC)
+	diagwLink2Time = time.Date(2026, 6, 18, 1, 0, 1, 0, time.UTC)
 	// buildTime is what the injected clock reports.
 	buildTime = time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
 )
@@ -62,14 +66,17 @@ func linkRow(src, dst, protocol, status string, at time.Time) analysis.Link {
 type topology struct {
 	vdus  map[string]analysis.VDU
 	vnfcs map[string][]analysis.VNFC
-	links map[contextbuilder.LinkTarget]analysis.Link
+
+	// links is a slice, not a map keyed by target: a target now names subtree
+	// roots, so which rows it selects is decided by matching rather than by
+	// lookup — exactly as the SQL does it.
+	links []analysis.Link
 }
 
 func seedTopology() topology {
 	t := topology{
 		vdus:  map[string]analysis.VDU{},
 		vnfcs: map[string][]analysis.VNFC{},
-		links: map[contextbuilder.LinkTarget]analysis.Link{},
 	}
 
 	add := func(vdu analysis.VDU, vnfcs ...analysis.VNFC) {
@@ -134,11 +141,17 @@ func seedTopology() topology {
 		vnfcRow("ims.vdu_sb_logic.vnfc_sb_logic_2", "ims.vdu_sb_logic", "sb-logic-2", "TERMINATED", "", nil),
 		vnfcRow("ims.vdu_sb_logic.vnfc_sb_logic_3", "ims.vdu_sb_logic", "sb-logic-3", "TERMINATED", "", nil))
 
+	// Both instances of each core VDU have an edge to the peer load balancer.
+	// The second one is what a VDU-pair target picks up and an instance-pair
+	// target never did — and it is in db/seed_test.sql with a fixed timestamp,
+	// so a golden can pin it.
 	for _, l := range []analysis.Link{
 		linkRow("ims.vdu_sb_sip_core.vnfc_sb_sip_core_1", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "SIP", "DOWN", seedTime),
+		linkRow("ims.vdu_sb_sip_core.vnfc_sb_sip_core_2", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", "SIP", "DOWN", sipgwLink2Time),
 		linkRow("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "DIAMETER", "DOWN", diagwLinkTime),
+		linkRow("ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_2", "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1", "DIAMETER", "DOWN", diagwLink2Time),
 	} {
-		t.links[contextbuilder.LinkTarget{SrcPath: l.SrcPath, DstPath: l.DstPath}] = l
+		t.links = append(t.links, l)
 	}
 
 	return t
@@ -177,14 +190,19 @@ type scenarioLink struct{ topology }
 func (s scenarioLink) FetchLinks(_ context.Context, targets []contextbuilder.LinkTarget) (contextbuilder.LinkResult, error) {
 	var res contextbuilder.LinkResult
 	for _, target := range targets {
-		link, ok := s.links[target]
-		if !ok {
+		found := false
+		for _, link := range s.links {
+			if !target.Matches(link.SrcPath, link.DstPath) {
+				continue
+			}
+			found = true
+			res.Links = append(res.Links, link)
+		}
+		if !found {
 			res.Missing = append(res.Missing, analysis.MissingContext{
 				Provider: analysis.ProviderLink, Entity: target.Entity(), Reason: analysis.ReasonNotFound,
 			})
-			continue
 		}
-		res.Links = append(res.Links, link)
 	}
 	return res, nil
 }
@@ -303,7 +321,11 @@ func TestScenarioSIPGWLinkDown(t *testing.T) {
 
 	assertProfiles(t, snap, "link_to_peer_sipgw_down_0001")
 	assertComplete(t, snap)
-	if len(snap.VDUs) != 4 || len(snap.VNFCs) != 5 || len(snap.Links) != 1 {
+	// Two links, not one: the profile names a VDU pair, so both sb_sip_core
+	// instances' edges to the load balancer come back. An instance-pair target
+	// fetched only the first, and would have kept fetching only the first
+	// however far the VDU scaled.
+	if len(snap.VDUs) != 4 || len(snap.VNFCs) != 5 || len(snap.Links) != 2 {
 		t.Errorf("collections = %d vdus, %d vnfcs, %d links", len(snap.VDUs), len(snap.VNFCs), len(snap.Links))
 	}
 	if len(snap.Configuration) != 0 {
@@ -344,7 +366,7 @@ func TestScenarioDIAGWLinkDown(t *testing.T) {
 
 	assertProfiles(t, snap, "link_to_peer_diagw_down_0001")
 	assertComplete(t, snap)
-	if len(snap.VDUs) != 5 || len(snap.VNFCs) != 6 || len(snap.Links) != 1 {
+	if len(snap.VDUs) != 5 || len(snap.VNFCs) != 6 || len(snap.Links) != 2 {
 		t.Errorf("collections = %d vdus, %d vnfcs, %d links", len(snap.VDUs), len(snap.VNFCs), len(snap.Links))
 	}
 	assertGolden(t, "diagw_link_down.json", snap)

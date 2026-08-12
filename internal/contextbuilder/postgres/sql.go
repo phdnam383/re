@@ -32,18 +32,27 @@ func ltreePlaceholders(start, n int) string {
 	return b.String()
 }
 
-// ltreePairPlaceholders renders "($1::ltree,$2::ltree),($3::ltree,$4::ltree),…"
-// for a row-value IN list, which is how an exact directed link lookup hits the
-// (src_path, dst_path) primary key.
-func ltreePairPlaceholders(start, pairs int) string {
+// ltreeSubtreePairPredicates renders
+// "(src_path <@ $1::ltree AND dst_path <@ $2::ltree) OR (…)" — one disjunct per
+// link target.
+//
+// <@ rather than equality because a target names subtree roots: a VDU pair has
+// to match every instance pair beneath it, and an instance pair still matches
+// only itself since a path is a descendant of itself.
+//
+// This trades the (src_path, dst_path) primary-key lookup for a scan of the
+// link table. The table holds one row per directed edge in the topology, which
+// is small and bounded by the deployment; if it ever stops being, the index to
+// add is GIST on src_path and dst_path.
+func ltreeSubtreePairPredicates(start, pairs int) string {
 	var b strings.Builder
 	for i := 0; i < pairs; i++ {
 		if i > 0 {
-			b.WriteByte(',')
+			b.WriteString(" OR ")
 		}
-		b.WriteString("($")
+		b.WriteString("(src_path <@ $")
 		b.WriteString(strconv.Itoa(start + i*2))
-		b.WriteString("::ltree,$")
+		b.WriteString("::ltree AND dst_path <@ $")
 		b.WriteString(strconv.Itoa(start + i*2 + 1))
 		b.WriteString("::ltree)")
 	}

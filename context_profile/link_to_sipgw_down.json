@@ -9,9 +9,7 @@
             "COMMUNICATIONS_ALERT"
         ],
         "additional_information": {
-            "dst_path": [
-                "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
-            ]
+            "dst_path": []
         }
     },
     "providers": {
@@ -23,8 +21,8 @@
         ],
         "link": [
             {
-                "src_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-                "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
+                "src_path": "ims.vdu_sb_sip_core",
+                "dst_path": "ims.vdu_cs_loadbalancer_icscf"
             }
         ]
     }

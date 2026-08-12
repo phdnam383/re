@@ -368,6 +368,67 @@ func TestLinkProviderExactDirectedPair(t *testing.T) {
 	}
 }
 
+func TestLinkProviderVDUPairCoversEveryInstance(t *testing.T) {
+	// The reason a profile names VDUs: sb_sip_core runs two instances and both
+	// have an edge to the load balancer. An instance-pair target fetched one of
+	// them, and would have kept fetching one however far the VDU scaled.
+	db := testDB(t)
+
+	target := contextbuilder.LinkTarget{
+		SrcPath: "ims.vdu_sb_sip_core",
+		DstPath: "ims.vdu_cs_loadbalancer_icscf",
+	}
+
+	res, err := NewLinkProvider(db).FetchLinks(context.Background(), []contextbuilder.LinkTarget{target})
+	if err != nil {
+		t.Fatalf("FetchLinks() error = %v", err)
+	}
+	if len(res.Missing) != 0 {
+		t.Fatalf("missing = %+v", res.Missing)
+	}
+	if len(res.Links) != 2 {
+		t.Fatalf("links = %d, want both instances' edges: %+v", len(res.Links), res.Links)
+	}
+	for _, l := range res.Links {
+		if !target.Matches(l.SrcPath, l.DstPath) {
+			t.Errorf("link %s -> %s is outside the target", l.SrcPath, l.DstPath)
+		}
+	}
+	// Still one direction only. The seed holds the reverse edges too, and a
+	// subtree match on both endpoints must not start returning them.
+	if res.Links[0].SrcPath == res.Links[1].SrcPath {
+		t.Errorf("links = %+v, want one per source instance", res.Links)
+	}
+}
+
+func TestLinkProviderOverlappingTargetsYieldOneRowEach(t *testing.T) {
+	// Two targets can select the same edge. A duplicated row would make one
+	// link count for two in anything that counts them, which is what the
+	// quantified link facts in the rule engine do.
+	db := testDB(t)
+
+	broad := contextbuilder.LinkTarget{
+		SrcPath: "ims.vdu_sb_sip_core",
+		DstPath: "ims.vdu_cs_loadbalancer_icscf",
+	}
+	narrow := contextbuilder.LinkTarget{
+		SrcPath: "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+		DstPath: "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+	}
+
+	res, err := NewLinkProvider(db).FetchLinks(context.Background(),
+		[]contextbuilder.LinkTarget{broad, narrow})
+	if err != nil {
+		t.Fatalf("FetchLinks() error = %v", err)
+	}
+	if len(res.Missing) != 0 {
+		t.Fatalf("missing = %+v, both targets are satisfied", res.Missing)
+	}
+	if len(res.Links) != 2 {
+		t.Errorf("links = %d, want 2 distinct rows: %+v", len(res.Links), res.Links)
+	}
+}
+
 func TestLinkProviderReportsUnknownPairs(t *testing.T) {
 	db := testDB(t)
 

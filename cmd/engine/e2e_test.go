@@ -388,7 +388,14 @@ func TestE2ESIPGWNamesEveryTerminatedComponent(t *testing.T) {
 	if got.GetStatus().GetOverall() != analysis.RCAStatusComplete {
 		t.Errorf("overall = %q, want COMPLETE", got.GetStatus().GetOverall())
 	}
-	want := []string{"rc-sipgw-loadbalancer-down", "rc-sipgw-icscf-down", "rc-sipgw-logic-down"}
+	// One id per blamed instance, and the order is the snapshot's VNFC order
+	// rather than the rules' salience: the document fans out over the instances
+	// the topology actually has, so the instances decide the order.
+	want := []string{
+		"rc-sipgw-loadbalancer-down-ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+		"rc-sipgw-logic-down-ims.vdu_cs_logic.vnfc_cs_logic_1",
+		"rc-sipgw-icscf-down-ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+	}
 	if got := rootCauseIDs(got); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("root causes = %v, want %v", got, want)
 	}
@@ -410,7 +417,13 @@ func TestE2ETPSReadsTheEffectiveConfiguration(t *testing.T) {
 	if got.GetStatus().GetOverall() != analysis.RCAStatusComplete {
 		t.Errorf("overall = %q, want COMPLETE", got.GetStatus().GetOverall())
 	}
-	want := []string{"rc-tps-replica-degradation", "rc-tps-high-log-file-config"}
+	// The replica finding is about the VDU, so its rule names no subject and
+	// keeps a fixed id. The configuration finding is about one instance and
+	// carries that instance's path.
+	want := []string{
+		"rc-tps-replica-degradation",
+		"rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
+	}
 	if ids := rootCauseIDs(got); strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Fatalf("root causes = %v, want %v", ids, want)
 	}

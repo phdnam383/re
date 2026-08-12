@@ -108,7 +108,8 @@ Build(context.Context, ContextInput) (ContextSnapshot, error)
   - VDU tồn tại nhưng không có VNFC là hợp lệ.
   - VDU không tồn tại tạo missing context.
 - Link Provider:
-  - Bulk-query đúng directed pair `(src_path,dst_path)`.
+  - Bulk-query theo directed subtree pair: `src_path <@ $1 AND dst_path <@ $2`. Endpoint là gốc subtree — nêu VDU thì lấy mọi cạnh giữa các instance của hai bên, nêu VNFC thì vẫn đúng một cạnh (ltree `<@` tính cả chính nó).
+  - Một target khớp ít nhất một row là đủ; không row nào khớp mới là MissingContext. Hai target chồng nhau có thể lấy trùng một cạnh, nên kết quả được dedupe theo `(src_path,dst_path)`.
   - Không traversal, không tự lấy chiều ngược.
   - Trả toàn bộ cột bảng `link`; pair không tồn tại tạo missing.
 - Configuration Provider:

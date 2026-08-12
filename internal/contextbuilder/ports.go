@@ -85,8 +85,10 @@ type VDUResult struct {
 	Missing []analysis.MissingContext
 }
 
-// LinkProvider fetches link rows for exact directed pairs. It performs no
-// traversal and never substitutes the reverse pair — a profile that wants both
+// LinkProvider fetches link rows for directed subtree pairs: every edge from
+// an instance under the source path to one under the destination path. It
+// performs no traversal and never substitutes the reverse pair — a profile that
+// wants both
 // directions names both.
 type LinkProvider interface {
 	FetchLinks(ctx context.Context, targets []LinkTarget) (LinkResult, error)

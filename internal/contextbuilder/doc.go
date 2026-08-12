@@ -9,7 +9,7 @@
 // imports.
 //
 // Nothing about what to fetch is hard-coded. A profile is the only source of
-// VDU paths, link pairs and configuration URLs, so one row can be read to
+// VDU paths, link subtree pairs and configuration URLs, so one row can be read to
 // know what a request will fetch. When no profile matches, the builder
 // returns ErrContextProfileNotFound and calls no provider — an engine
 // reasoning over a scope nobody declared is worse than one that refuses.

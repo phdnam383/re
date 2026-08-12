@@ -47,9 +47,12 @@ type Selector struct {
 	AdditionalInformation map[string][]any `json:"additional_information,omitempty"`
 }
 
-// ProviderSpec is context_profile.providers: the exact work the profile asks
-// for. Every target is concrete — there are no selectors, wildcards or hop
-// counts here, so one row can be read to know what a request will fetch.
+// ProviderSpec is context_profile.providers: the work the profile asks for.
+// Every target is a named path — there are no selectors, wildcards or hop
+// counts here, so one row can be read to know what a request will fetch. A path
+// stands for its subtree, which is what lets a profile name a VDU and get its
+// instances without knowing how many there are; it never means "follow the
+// topology from here".
 type ProviderSpec struct {
 	// VDU holds exact VDU paths. Each one also yields every VNFC in its
 	// subtree; the profile does not name VNFCs individually.
@@ -60,7 +63,14 @@ type ProviderSpec struct {
 }
 
 // LinkTarget is one directed pair to fetch. Direction is significant: the
-// provider looks up exactly this pair and never the reverse.
+// provider looks up pairs in this direction and never the reverse.
+//
+// Each endpoint is a subtree root, not an exact address. Naming a VDU fetches
+// every link between its instances and the other side's, which is what makes a
+// profile survive scaling: the set of instance pairs changes every time a VDU
+// grows or shrinks, and a profile that named them would stop fetching the
+// connectivity of whichever instances came later. Naming a VNFC still fetches
+// exactly that one instance's links, because a path is a descendant of itself.
 type LinkTarget struct {
 	SrcPath string `json:"src_path"`
 	DstPath string `json:"dst_path"`
@@ -70,6 +80,23 @@ type LinkTarget struct {
 // no path of its own, so the two endpoints and the direction between them are
 // its identity.
 func (l LinkTarget) Entity() string { return l.SrcPath + "->" + l.DstPath }
+
+// Matches reports whether a link row satisfies this target.
+//
+// It is the Go statement of the provider's SQL predicate, and the two have to
+// agree: the provider decides what to fetch with ltree, and the builder decides
+// what is missing with this. A target that matched no row is a gap; one row is
+// enough to satisfy it, however many instance pairs it covers.
+func (l LinkTarget) Matches(srcPath, dstPath string) bool {
+	return underOrEqual(srcPath, l.SrcPath) && underOrEqual(dstPath, l.DstPath)
+}
+
+// underOrEqual mirrors the ltree <@ operator: a path is a descendant of itself,
+// and the comparison is on whole labels — the trailing dot is what stops
+// "ims.vdu_sb" from claiming "ims.vdu_sb_logic".
+func underOrEqual(path, root string) bool {
+	return path == root || strings.HasPrefix(path, root+".")
+}
 
 // ConfigurationTarget is one effective-configuration read.
 //

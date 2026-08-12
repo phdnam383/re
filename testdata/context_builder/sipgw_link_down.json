@@ -168,6 +168,14 @@
       "status": "DOWN",
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
+    },
+    {
+      "src_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_2",
+      "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+      "protocol": "SIP",
+      "status": "DOWN",
+      "created_at": "2026-06-18T00:00:01Z",
+      "updated_at": "2026-06-18T00:00:01Z"
     }
   ],
   "configuration": [],

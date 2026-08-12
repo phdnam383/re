@@ -9,9 +9,7 @@
             "COMMUNICATIONS_ALERT"
         ],
         "additional_information": {
-            "dst_path": [
-                "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1"
-            ]
+            "dst_path": []
         }
     },
     "providers": {
@@ -24,8 +22,8 @@
         ],
         "link": [
             {
-                "src_path": "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
-                "dst_path": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1"
+                "src_path": "ims.vdu_sb_diameter_core",
+                "dst_path": "ims.vdu_cs_loadbalancer_diagw"
             }
         ]
     }

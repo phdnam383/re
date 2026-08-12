@@ -220,6 +220,70 @@ func mustLoadProfileFile(t *testing.T, name string) ContextProfile {
 	return profile
 }
 
+func TestLinkTargetMatches(t *testing.T) {
+	// The Go half of the provider's ltree predicate. The two decide different
+	// things — what to fetch, and what is missing — so they have to agree, and
+	// this is where the agreement is written down.
+	const (
+		srcVDU = "ims.vdu_sb_sip_core"
+		dstVDU = "ims.vdu_cs_loadbalancer_icscf"
+		src1   = "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1"
+		src2   = "ims.vdu_sb_sip_core.vnfc_sb_sip_core_2"
+		dst1   = "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
+	)
+
+	tests := []struct {
+		name     string
+		target   LinkTarget
+		src, dst string
+		want     bool
+	}{
+		{
+			name:   "a vdu pair covers every instance pair beneath it",
+			target: LinkTarget{SrcPath: srcVDU, DstPath: dstVDU},
+			src:    src2, dst: dst1, want: true,
+		},
+		{
+			// The property that makes this change backward compatible: a path
+			// is a descendant of itself, so an instance pair still selects
+			// exactly the row it always did.
+			name:   "an instance pair still matches only itself",
+			target: LinkTarget{SrcPath: src1, DstPath: dst1},
+			src:    src1, dst: dst1, want: true,
+		},
+		{
+			name:   "an instance pair does not match a sibling instance",
+			target: LinkTarget{SrcPath: src1, DstPath: dst1},
+			src:    src2, dst: dst1, want: false,
+		},
+		{
+			// Direction is still part of the target.
+			name:   "the reverse edge is a different link",
+			target: LinkTarget{SrcPath: srcVDU, DstPath: dstVDU},
+			src:    dst1, dst: src1, want: false,
+		},
+		{
+			// Whole labels only. Without the boundary "ims.vdu_sb" would claim
+			// every VDU whose name merely starts the same way.
+			name:   "a sibling vdu sharing a prefix is not beneath it",
+			target: LinkTarget{SrcPath: "ims.vdu_sb", DstPath: dstVDU},
+			src:    src1, dst: dst1, want: false,
+		},
+		{
+			name:   "one endpoint outside the target is not a match",
+			target: LinkTarget{SrcPath: srcVDU, DstPath: dstVDU},
+			src:    src1, dst: "ims.vdu_cs_logic.vnfc_cs_logic_1", want: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.target.Matches(tc.src, tc.dst); got != tc.want {
+				t.Errorf("Matches(%q,%q) = %v, want %v", tc.src, tc.dst, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDefinitionErrorMessage(t *testing.T) {
 	err := &DefinitionError{Profile: "p", Field: "providers.vdu[0]", Detail: "boom"}
 	if got := err.Error(); !strings.Contains(got, `"p"`) || !strings.Contains(got, "providers.vdu[0]") {
