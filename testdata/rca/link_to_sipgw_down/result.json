@@ -2,9 +2,9 @@
   "status": "COMPLETE",
   "root_causes": [
     {
-      "id": "rc-sipgw-loadbalancer-down",
+      "id": "rc-sipgw-loadbalancer-down-ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
       "category": "SIPGW_DOWN",
-      "summary": "I-CSCF load balancer is TERMINATED",
+      "summary": "I-CSCF load balancer instance is TERMINATED",
       "entity": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
       "role": "PRIMARY",
       "confidence": 0.35,
@@ -12,31 +12,14 @@
         {
           "code": "RESTART_VNFC",
           "mo_instance": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-          "op": "REPLACE",
-          "value": "RESTART"
+          "op": "REPLACE"
         }
       ]
     },
     {
-      "id": "rc-sipgw-icscf-down",
+      "id": "rc-sipgw-logic-down-ims.vdu_cs_logic.vnfc_cs_logic_1",
       "category": "SIPGW_DOWN",
-      "summary": "I-CSCF SIP component is TERMINATED",
-      "entity": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
-      "role": "PRIMARY",
-      "confidence": 0.35,
-      "actions": [
-        {
-          "code": "RESTART_VNFC",
-          "mo_instance": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
-          "op": "REPLACE",
-          "value": "RESTART"
-        }
-      ]
-    },
-    {
-      "id": "rc-sipgw-logic-down",
-      "category": "SIPGW_DOWN",
-      "summary": "SIPGW logic component is TERMINATED",
+      "summary": "SIPGW logic component instance is TERMINATED",
       "entity": "ims.vdu_cs_logic.vnfc_cs_logic_1",
       "role": "PRIMARY",
       "confidence": 0.35,
@@ -44,8 +27,22 @@
         {
           "code": "RESTART_VNFC",
           "mo_instance": "ims.vdu_cs_logic.vnfc_cs_logic_1",
-          "op": "REPLACE",
-          "value": "RESTART"
+          "op": "REPLACE"
+        }
+      ]
+    },
+    {
+      "id": "rc-sipgw-icscf-down-ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+      "category": "SIPGW_DOWN",
+      "summary": "I-CSCF SIP component instance is TERMINATED",
+      "entity": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+      "role": "PRIMARY",
+      "confidence": 0.35,
+      "actions": [
+        {
+          "code": "RESTART_VNFC",
+          "mo_instance": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+          "op": "REPLACE"
         }
       ]
     }
@@ -55,19 +52,22 @@
       "rule_id": "rule-link_to_diagw_down",
       "rule_name": "link_to_diagw_down",
       "status": "COMPLETE",
-      "root_cause_count": 0
+      "root_cause_count": 0,
+      "passes": 10
     },
     {
       "rule_id": "rule-link_to_sipgw_down",
       "rule_name": "link_to_sipgw_down",
       "status": "COMPLETE",
-      "root_cause_count": 3
+      "root_cause_count": 3,
+      "passes": 10
     },
     {
       "rule_id": "rule-tps_overloaded",
       "rule_name": "tps_overloaded",
       "status": "COMPLETE",
-      "root_cause_count": 0
+      "root_cause_count": 0,
+      "passes": 10
     }
   ]
 }

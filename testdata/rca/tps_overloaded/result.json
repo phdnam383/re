@@ -4,7 +4,7 @@
     {
       "id": "rc-tps-replica-degradation",
       "category": "REPLICA_DEGRADATION",
-      "summary": "Only one of three sb_logic replicas is ready while TPS load is high",
+      "summary": "sb_logic is running fewer replicas than declared while TPS load is high",
       "entity": "ims.vdu_sb_logic",
       "role": "PRIMARY",
       "confidence": 0.55,
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "id": "rc-tps-high-log-file-config",
+      "id": "rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
       "category": "HIGH_LOG_FILE_CONFIG",
       "summary": "number_of_log_file is too high and increases RAM consumption",
       "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
@@ -39,19 +39,22 @@
       "rule_id": "rule-link_to_diagw_down",
       "rule_name": "link_to_diagw_down",
       "status": "COMPLETE",
-      "root_cause_count": 0
+      "root_cause_count": 0,
+      "passes": 5
     },
     {
       "rule_id": "rule-link_to_sipgw_down",
       "rule_name": "link_to_sipgw_down",
       "status": "COMPLETE",
-      "root_cause_count": 0
+      "root_cause_count": 0,
+      "passes": 5
     },
     {
       "rule_id": "rule-tps_overloaded",
       "rule_name": "tps_overloaded",
       "status": "COMPLETE",
-      "root_cause_count": 2
+      "root_cause_count": 2,
+      "passes": 5
     }
   ]
 }

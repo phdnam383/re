@@ -62,6 +62,11 @@ func NewFacts(snap analysis.ContextSnapshot) *Facts {
 	}
 }
 
+// subjects is the ordered list of entities the rule set is run against, one
+// execution pass each. Unexported because it is the runner's concern: a rule
+// sees the one subject its own pass was given, never the list.
+func (f *Facts) subjects() []*SubjectFacts { return f.v.subjects() }
+
 // --- alerts --------------------------------------------------------------
 
 // AlertFacts answers questions about the alerts that opened the incident.
@@ -156,6 +161,19 @@ func (f *VNFCFacts) IsDown(path string) bool {
 	return equalFold(f.Status(path), statusTerminated)
 }
 
+// Parent is the path of the VDU that owns this VNFC, or "" when the snapshot
+// does not carry it.
+//
+// This is how a rule scopes itself to a deployment unit without naming any
+// instance: Parent(Subject.Path()) == "ims.vdu_x" is true for whichever
+// instances of that VDU exist at the time, however many there are.
+//
+// It returns VNFC.VDUPath as the Context Builder recorded it rather than
+// trimming the last label off the path. Containment is something the snapshot
+// already answers, and deriving it a second way here is how the two answers
+// start to disagree.
+func (f *VNFCFacts) Parent(path string) string { return f.v.vnfcByPath[path].VDUPath }
+
 // --- link ----------------------------------------------------------------
 
 // LinkFacts answers questions about directed links between entities.
@@ -175,7 +193,71 @@ func (f *LinkFacts) Status(src, dst string) string {
 // scenario written so far treats "the peer is unreachable enough to matter" as
 // one condition. A rule that needs to tell the two apart reads Status.
 func (f *LinkFacts) IsDown(src, dst string) bool {
-	status := f.Status(src, dst)
+	return linkUnusable(f.Status(src, dst))
+}
+
+// IsSeveredBetween reports whether connectivity from one VDU to another is
+// wholly lost: at least one link between their instances is known, and every
+// known one is unusable.
+//
+// The quantifier is "every", not "any", and that is the whole point. A VDU pair
+// has as many links as it has instance pairs, so "any link is down" gets easier
+// to satisfy the more the VDUs scale out — one flapping edge out of six would
+// report an outage while five paths still carry traffic, which is precisely
+// what running several instances behind a load balancer is for.
+//
+// An empty link set answers false. "Every link in nothing is down" is
+// vacuously true and would turn a snapshot that was never given the topology
+// into a reported outage — the same reason VDU.IsDegraded insists on a positive
+// desired count before calling anything degraded.
+func (f *LinkFacts) IsSeveredBetween(srcVDU, dstVDU string) bool {
+	return severed(f.v.linksBetween(srcVDU, dstVDU))
+}
+
+// IsSeveredTo reports whether every known link from an instance of the source
+// VDU to exactly this destination instance is unusable.
+//
+// This is the per-instance form: where IsSeveredBetween answers "the two VDUs
+// cannot reach each other", this answers "nothing can reach this one instance",
+// which is the evidence a rule needs when the instance it is about to blame is
+// itself the destination.
+func (f *LinkFacts) IsSeveredTo(srcVDU, dstPath string) bool {
+	return severed(f.v.linksTo(srcVDU, dstPath))
+}
+
+// DownCountBetween is how many links between the two VDUs are unusable.
+//
+// It exists for the rule that wants a threshold rather than the absolute
+// IsSeveredBetween states — GRL has no way to count a collection itself, so a
+// rule that fires once half the paths are gone needs the count as an
+// expression.
+func (f *LinkFacts) DownCountBetween(srcVDU, dstVDU string) int {
+	count := 0
+	for _, l := range f.v.linksBetween(srcVDU, dstVDU) {
+		if linkUnusable(l.Status) {
+			count++
+		}
+	}
+	return count
+}
+
+// severed reports whether a non-empty set of links is entirely unusable.
+func severed(links []analysis.Link) bool {
+	if len(links) == 0 {
+		return false
+	}
+	for _, l := range links {
+		if !linkUnusable(l.Status) {
+			return false
+		}
+	}
+	return true
+}
+
+// linkUnusable is the single definition of a link that cannot be relied on.
+// UNKNOWN is not included: not knowing the status of a link is not evidence
+// that traffic is failing over it, for the reason VNFC.IsDown gives.
+func linkUnusable(status string) bool {
 	return equalFold(status, linkDown) || equalFold(status, linkDegraded)
 }
 

@@ -82,13 +82,33 @@ func (r *Result) Assert(id, category, summary, entity, role string, confidence f
 // The reference must resolve inside the same row. An action whose cause was
 // asserted by a different document would survive that document being discarded
 // and end up recommending a change with nothing left to justify it.
-func (r *Result) Recommend(rootCauseID, code, moInstance, op string, value any) {
+//
+// The value is optional because not every action takes one: RESTART_VNFC says
+// everything it means in its code, while SET_CONFIG needs the number to set. It
+// is variadic rather than a nil argument because GRL cannot write nil — passing
+// one panics inside the rule library's reflection — so "no value" has to be
+// expressible as an argument that is simply not there.
+func (r *Result) Recommend(rootCauseID, code, moInstance, op string, value ...any) {
 	causeID := strings.TrimSpace(rootCauseID)
+
+	// Variadic means "zero or one" here, not "any number". Two values is a rule
+	// that has misunderstood the call, and guessing which one was meant would
+	// ship a change nobody asked for.
+	if len(value) > 1 {
+		r.errs = append(r.errs, fmt.Errorf(
+			"action %q: %d values given, want at most one", strings.TrimSpace(code), len(value)))
+		return
+	}
+	var v any
+	if len(value) == 1 {
+		v = value[0]
+	}
+
 	action := analysis.RecommendedAction{
 		Code:       strings.TrimSpace(code),
 		MOInstance: strings.TrimSpace(moInstance),
 		Op:         strings.ToUpper(strings.TrimSpace(op)),
-		Value:      value,
+		Value:      v,
 	}
 	if err := validateAction(causeID, action); err != nil {
 		r.errs = append(r.errs, err)

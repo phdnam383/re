@@ -122,13 +122,26 @@ func TestScenarioSIPGWBlamesEveryTerminatedComponent(t *testing.T) {
 		t.Errorf("status = %s, want COMPLETE", got.Status)
 	}
 
+	// Root causes come out in subject order, which is the order the snapshot
+	// sorts VNFCs in — not salience order. Salience still decides which rule of
+	// a document gets its turn first within one pass, but a document that fans
+	// out asserts once per instance, and the instances arrive in path order.
 	want := []struct {
 		id, category, entity, role string
 		confidence                 float64
 	}{
-		{"rc-sipgw-loadbalancer-down", "SIPGW_DOWN", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", analysis.RolePrimary, 0.35},
-		{"rc-sipgw-icscf-down", "SIPGW_DOWN", "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", analysis.RolePrimary, 0.35},
-		{"rc-sipgw-logic-down", "SIPGW_DOWN", "ims.vdu_cs_logic.vnfc_cs_logic_1", analysis.RolePrimary, 0.35},
+		{
+			"rc-sipgw-loadbalancer-down-ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+			"SIPGW_DOWN", "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1", analysis.RolePrimary, 0.35,
+		},
+		{
+			"rc-sipgw-logic-down-ims.vdu_cs_logic.vnfc_cs_logic_1",
+			"SIPGW_DOWN", "ims.vdu_cs_logic.vnfc_cs_logic_1", analysis.RolePrimary, 0.35,
+		},
+		{
+			"rc-sipgw-icscf-down-ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+			"SIPGW_DOWN", "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1", analysis.RolePrimary, 0.35,
+		},
 	}
 	if len(got.RootCauses) != len(want) {
 		t.Fatalf("root causes = %d, want %d: %v", len(got.RootCauses), len(want), causeIDsOf(got))
@@ -139,16 +152,32 @@ func TestScenarioSIPGWBlamesEveryTerminatedComponent(t *testing.T) {
 			c.Role != w.role || c.Confidence != w.confidence {
 			t.Errorf("root cause %d = %+v, want %+v", i, c, w)
 		}
-		// Each blamed component gets exactly one restart proposal, aimed at
-		// itself.
+		// Each blamed instance gets exactly one restart proposal, aimed at
+		// itself. The action carries no value: RESTART_VNFC says everything it
+		// means in its code.
 		if len(c.Actions) != 1 {
 			t.Fatalf("root cause %s has %d actions, want 1", c.ID, len(c.Actions))
 		}
 		a := c.Actions[0]
 		if a.Code != "RESTART_VNFC" || a.MOInstance != w.entity ||
-			a.Op != analysis.OpReplace || a.Value != "RESTART" {
+			a.Op != analysis.OpReplace || a.Value != nil {
 			t.Errorf("root cause %s action = %+v", c.ID, a)
 		}
+	}
+}
+
+func TestScenarioSIPGWNamesNoInstanceInTheRuleText(t *testing.T) {
+	// The whole point of the rewrite: the shipped rules address VDUs, and the
+	// instances they blame come from the snapshot. A rule text that names a
+	// VNFC path is one that goes silent the next time the VDU is scaled, and
+	// nothing else in this package would notice.
+	for _, r := range shippedRules(t) {
+		t.Run(r.Name, func(t *testing.T) {
+			if i := strings.Index(r.Content, ".vnfc_"); i >= 0 {
+				line := r.Content[max(0, i-80):min(len(r.Content), i+40)]
+				t.Errorf("rule text names a VNFC instance:\n...%s...", line)
+			}
+		})
 	}
 }
 
@@ -162,23 +191,29 @@ func TestScenarioDIAGWSparesTheHealthyConnector(t *testing.T) {
 	// The document holds four rules. cs_hss_connector_1 is RUNNING, so the
 	// fourth must not fire — this is the test that a rule set does not blame
 	// everything in the dependency chain by reflex.
+	//
+	// The order is the snapshot's VNFC order, so diag_logic precedes
+	// diameter_router precedes loadbalancer_diagw.
 	want := []string{
-		"rc-diagw-loadbalancer-down",
-		"rc-diagw-diameter-router-down",
-		"rc-diagw-logic-down",
+		"rc-diagw-logic-down-ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+		"rc-diagw-diameter-router-down-ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+		"rc-diagw-loadbalancer-down-ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
 	}
 	if got := causeIDsOf(got); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("root causes = %v, want %v", got, want)
 	}
 
-	// Salience decides the order, and the load balancer is the one the rule
-	// author was most sure about.
-	if got.RootCauses[0].Confidence != 0.55 {
-		t.Errorf("load balancer confidence = %v, want 0.55", got.RootCauses[0].Confidence)
-	}
-	for _, c := range got.RootCauses[1:] {
-		if c.Confidence != 0.35 {
-			t.Errorf("%s confidence = %v, want 0.35", c.ID, c.Confidence)
+	// The load balancer is the one the rule author was most sure about. It is
+	// found by id rather than by position: the order now comes from the
+	// snapshot, so an index here would be asserting something this test is not
+	// about.
+	for _, c := range got.RootCauses {
+		want := 0.35
+		if strings.HasPrefix(c.ID, "rc-diagw-loadbalancer-down-") {
+			want = 0.55
+		}
+		if c.Confidence != want {
+			t.Errorf("%s confidence = %v, want %v", c.ID, c.Confidence, want)
 		}
 	}
 }
@@ -190,7 +225,13 @@ func TestScenarioTPSCombinesDegradationAndConfiguration(t *testing.T) {
 		t.Errorf("status = %s, want COMPLETE", got.Status)
 	}
 
-	want := []string{"rc-tps-replica-degradation", "rc-tps-high-log-file-config"}
+	// The replica finding is about the VDU, so its rule names no subject and
+	// concludes on the very first pass. The configuration finding is about one
+	// instance, so it waits for that instance's pass and carries its path.
+	want := []string{
+		"rc-tps-replica-degradation",
+		"rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
+	}
 	if ids := causeIDsOf(got); strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Fatalf("root causes = %v, want %v", ids, want)
 	}
@@ -213,8 +254,16 @@ func TestScenarioTPSCombinesDegradationAndConfiguration(t *testing.T) {
 		restore.Op != analysis.OpReplace {
 		t.Errorf("restore action = %+v", restore)
 	}
-	if v, ok := restore.Value.(int64); !ok || v != 3 {
-		t.Errorf("restore value = %#v, want int64(3)", restore.Value)
+	// The count is read from the snapshot rather than written into the rule, so
+	// it arrives as the Go int the VDU row carries — and, more to the point, it
+	// is whatever the VDU currently declares. A literal here would keep
+	// recommending the old number after an operator scaled the VDU, which is
+	// the same class of bug as a rule naming an instance.
+	if v, ok := restore.Value.(int); !ok || v != 3 {
+		t.Errorf("restore value = %#v, want int(3)", restore.Value)
+	}
+	if want := got.RootCauses[0].Entity; want != "ims.vdu_sb_logic" {
+		t.Errorf("entity = %q, want the VDU", want)
 	}
 }
 

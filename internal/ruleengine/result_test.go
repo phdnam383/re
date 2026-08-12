@@ -150,10 +150,19 @@ func TestRecommendValidation(t *testing.T) {
 			wantErr:   "op",
 		},
 		{
-			// REMOVE takes nothing away with it: the absent value is the whole
-			// proposal, so a nil value is valid rather than a missing field.
-			name:      "remove without a value is valid",
-			recommend: func(r *Result) { r.Recommend("rc-1", "C", "ims.a", analysis.OpRemove, nil) },
+			// Not every action takes a value. RESTART_VNFC says all it means in
+			// its code, so the argument is simply absent rather than nil — which
+			// GRL could not write in any case.
+			name:      "no value is valid",
+			recommend: func(r *Result) { r.Recommend("rc-1", "C", "ims.a", analysis.OpRemove) },
+		},
+		{
+			// Variadic means "zero or one". Two values is a rule that has
+			// misunderstood the call, and picking one would ship a change
+			// nobody asked for.
+			name:      "more than one value",
+			recommend: func(r *Result) { r.Recommend("rc-1", "C", "ims.a", analysis.OpAdd, 1, 2) },
+			wantErr:   "want at most one",
 		},
 	}
 

@@ -439,6 +439,12 @@ type RuleExecution struct {
 	// whose output was discarded reports 0.
 	RootCauseCount int `json:"root_cause_count"`
 
+	// Passes is how many times the document was executed — once per subject the
+	// snapshot offered. A row that concluded nothing over forty passes and a row
+	// that never got past its first are different problems, and only this
+	// separates them.
+	Passes int `json:"passes,omitempty"`
+
 	// Latency is wall-clock, so it is excluded from JSON: it would make every
 	// golden fixture unstable and it means nothing outside the run that
 	// produced it.

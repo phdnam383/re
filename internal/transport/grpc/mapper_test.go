@@ -337,17 +337,17 @@ func TestActionValueCoversEveryJSONType(t *testing.T) {
 			},
 		},
 		{
-			// A nil value must become a protobuf null, not an absent field:
-			// "set this to null" and "no value was given" are different
-			// instructions.
-			name:  "null",
+			// An action without a value leaves the field unset. Not every
+			// action takes one — RESTART_VNFC says all it means in its code —
+			// and an explicit null would tell a caller to set something to
+			// null, which is a different instruction from having nothing to
+			// set. The rule side cannot express that instruction anyway: GRL
+			// has no nil literal, so a value is either given or absent.
+			name:  "no value",
 			value: nil,
 			check: func(t *testing.T, v *structpb.Value) {
-				if v == nil {
-					t.Fatal("value is absent, want a protobuf null")
-				}
-				if _, ok := v.GetKind().(*structpb.Value_NullValue); !ok {
-					t.Errorf("= %v, want NullValue", v)
+				if v != nil {
+					t.Errorf("= %v, want the field left unset", v)
 				}
 			},
 		},

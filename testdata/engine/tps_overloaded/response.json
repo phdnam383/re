@@ -19,7 +19,7 @@
         "entity": "ims.vdu_sb_logic",
         "id": "rc-tps-replica-degradation",
         "role": "PRIMARY",
-        "summary": "Only one of three sb_logic replicas is ready while TPS load is high"
+        "summary": "sb_logic is running fewer replicas than declared while TPS load is high"
       },
       {
         "actions": [
@@ -33,7 +33,7 @@
         "category": "HIGH_LOG_FILE_CONFIG",
         "confidence": 0.3,
         "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
-        "id": "rc-tps-high-log-file-config",
+        "id": "rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
         "role": "CONTRIBUTING",
         "summary": "number_of_log_file is too high and increases RAM consumption"
       }

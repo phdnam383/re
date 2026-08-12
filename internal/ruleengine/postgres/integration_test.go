@@ -286,9 +286,14 @@ func TestRuleRepositoryLoadsContentThatCompiles(t *testing.T) {
 	runtime := ruleengine.NewGRLRuntime()
 	for _, r := range rules {
 		t.Run(r.Name, func(t *testing.T) {
-			// An empty snapshot: no rule can match, so this exercises compile
-			// and evaluation without depending on any fixture topology.
-			err := runtime.Execute(context.Background(), r, ruleengine.NewFacts(emptySnapshot()), ruleengine.NewResult())
+			session, err := runtime.Prepare(r)
+			if err != nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			// An empty snapshot with no subject: no rule can match, so this
+			// exercises compile and evaluation without depending on any
+			// fixture topology.
+			err = session.Run(context.Background(), ruleengine.NewFacts(emptySnapshot()), nil, ruleengine.NewResult())
 			if err != nil {
 				t.Errorf("execute: %v", err)
 			}

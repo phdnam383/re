@@ -28,12 +28,36 @@ func grlRule(content string) analysis.RuleDefinition {
 	return analysis.RuleDefinition{ID: "rule-id", Name: "test_rule", Content: content}
 }
 
-// runGRL executes one document over an empty-but-COMPLETE snapshot.
+// runGRL executes one document over an empty-but-COMPLETE snapshot, which
+// offers exactly one subject: the no-subject pass.
 func runGRL(t *testing.T, rt *GRLRuntime, rule analysis.RuleDefinition) (*Result, error) {
 	t.Helper()
+	return runGRLOver(t, rt, rule, completeSnapshot())
+}
+
+// runGRLOver executes one document over a snapshot, once per subject, exactly
+// as the runner does.
+func runGRLOver(
+	t *testing.T,
+	rt *GRLRuntime,
+	rule analysis.RuleDefinition,
+	snap analysis.ContextSnapshot,
+) (*Result, error) {
+	t.Helper()
+
+	session, err := rt.Prepare(rule)
+	if err != nil {
+		return NewResult(), err
+	}
+
+	facts := NewFacts(snap)
 	sink := NewResult()
-	err := rt.Execute(context.Background(), rule, NewFacts(completeSnapshot()), sink)
-	return sink, err
+	for _, subject := range facts.subjects() {
+		if err := session.Run(context.Background(), facts, subject, sink); err != nil {
+			return sink, err
+		}
+	}
+	return sink, nil
 }
 
 func causeIDs(r *Result) []string {
@@ -76,9 +100,9 @@ func TestGRLNonMatchingRulesProduceNothing(t *testing.T) {
 	snap := completeSnapshot()
 	snap.Input.Alerts = []analysis.Alert{{ID: "a", SourcePath: "ims.a", ProbableCause: "PRESENT"}}
 
-	sink := NewResult()
-	if err := NewGRLRuntime().Execute(context.Background(), grlRule(doc), NewFacts(snap), sink); err != nil {
-		t.Fatalf("Execute: %v", err)
+	sink, err := runGRLOver(t, NewGRLRuntime(), grlRule(doc), snap)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
 	got := causeIDs(sink)
@@ -192,10 +216,12 @@ func TestGRLCancellationStopsExecution(t *testing.T) {
 	cancel()
 
 	doc := grlAssert("R", 100, "true", "rc-1")
-	sink := NewResult()
-	err := NewGRLRuntime().Execute(ctx, grlRule(doc), NewFacts(completeSnapshot()), sink)
-	if err == nil {
-		t.Fatal("Execute = nil, want a cancellation error")
+	session, err := NewGRLRuntime().Prepare(grlRule(doc))
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if err := session.Run(ctx, NewFacts(completeSnapshot()), noSubject, NewResult()); err == nil {
+		t.Fatal("Run = nil, want a cancellation error")
 	}
 }
 
@@ -379,9 +405,10 @@ func TestCacheIsSafeUnderConcurrentUse(t *testing.T) {
 }
 
 func TestGRLRuntimeIsSafeUnderConcurrentUse(t *testing.T) {
-	// Each execution takes a clone because working memory is mutable; two
+	// Each Prepare takes a clone because working memory is mutable; two
 	// analyses sharing one blueprint would corrupt each other's evaluation
-	// state.
+	// state. The clone is per row, not per pass, so this is the boundary that
+	// has to hold.
 	rt := NewGRLRuntime()
 	doc := grlRule(grlAssert("A", 100, "true", "rc-a") + grlAssert("B", 90, "true", "rc-b"))
 
@@ -391,8 +418,8 @@ func TestGRLRuntimeIsSafeUnderConcurrentUse(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sink := NewResult()
-			if err := rt.Execute(context.Background(), doc, NewFacts(completeSnapshot()), sink); err != nil {
+			sink, err := runGRL(t, rt, doc)
+			if err != nil {
 				t.Errorf("goroutine %d: %v", i, err)
 				return
 			}

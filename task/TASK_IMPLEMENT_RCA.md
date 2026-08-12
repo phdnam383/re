@@ -52,7 +52,7 @@ re/
 - Task này triển khai toàn bộ `internal/ruleengine`, PostgreSQL Rule Repository, RCA domain models còn thiếu và RCA testdata.
 - `cmd`, Analysis Service, gRPC transport và response mapper chỉ thể hiện vị trí kiến trúc mục tiêu; không triển khai trong task này.
 - Có thể adapt từ IAE: KnowledgeLibrary/cache/clone, DataContext binding, sequential runner, immutable Facts/view, failure isolation và result ordering.
-- Không mang sang: rule resolver/selector, capability filtering, Subject iteration, RequiredContext, RCA limits, Finding/Evidence, ranking, Action Catalog và Decision Engine.
+- Không mang sang: rule resolver/selector, capability filtering, RequiredContext, RCA limits, Finding/Evidence, ranking, Action Catalog và Decision Engine.
 
 ## 1. Contract và domain model
 
@@ -121,8 +121,10 @@ type Facts struct {
 - Expose đúng API đang được các GRL mẫu sử dụng:
   - `Alerts.HasCause`, `HasOverload`, `OverloadCount`.
   - `VDU.IsDegraded`, `ReadyReplicas`, `DesiredReplicas`.
-  - `VNFC.Status`, `IsDown`.
-  - `Link.Status`, `IsDown`.
+  - `VNFC.Status`, `IsDown`, `Parent`.
+  - `Link.Status`, `IsDown`, `IsSeveredBetween`, `IsSeveredTo`, `DownCountBetween`.
+- Rule không được đặt tên VNFC instance. Instance sinh ra và biến mất theo scale, nên rule chỉ nêu VDU và để engine lặp qua instance (mục 4b).
+- `Link.IsSeveredBetween`/`IsSeveredTo` lượng từ là "mọi cạnh", không phải "có cạnh nào": tập cạnh giữa hai VDU lớn dần theo scale, nên "any" càng dễ thoả khi càng nhiều instance. Tập cạnh rỗng trả `false`; `UNKNOWN` không tính là down.
   - `Configuration.Has`, `GetFloat`, `GetString`.
 - Semantics:
   - Overload là alert tại entity hoặc descendant, cause `THRESHOLD_CROSSING`, metric bắt đầu bằng `overload`.
@@ -141,7 +143,7 @@ type Facts struct {
 ```go
 Assert(id, category, summary, entity, role string, confidence float64)
 
-Recommend(rootCauseID, code, moInstance, op string, value any)
+Recommend(rootCauseID, code, moInstance, op string, value ...any)
 ```
 
 - Validate chặt:
@@ -150,6 +152,7 @@ Recommend(rootCauseID, code, moInstance, op string, value any)
   - Confidence thuộc `0..1`.
   - Action code, root-cause ID và MO instance không rỗng.
   - Operation thuộc `ADD | REMOVE | REPLACE`.
+  - `value` là tuỳ chọn (không phải mọi action code cần value); quá một value là lỗi. GRL không viết được `nil` nên "không có value" phải biểu diễn bằng tham số vắng mặt, và map thành field bỏ trống trên wire.
   - Action chỉ được tham chiếu root cause đã được khai báo trong chính DB row đó.
 - Validation error được giữ trong sink; sau execution, row chuyển thành `FAILED`. Không clamp và không âm thầm bỏ output sai.
 - Mỗi row dùng sink tạm và là atomic failure boundary:
@@ -161,6 +164,18 @@ Recommend(rootCauseID, code, moInstance, op string, value any)
 - Action deduplicate theo `(code, mo_instance, op, canonical JSON value)`; action trùng nhau được hấp thụ, không liệt kê lại.
 - Root causes giữ thứ tự fire đầu tiên.
 - Actions sort theo code, tie-break theo MO instance, operation và canonical JSON value.
+
+## 4b. Subject iteration
+
+- Runner chạy mỗi document một lần cho **mỗi subject** trong snapshot, theo thứ tự cố định: pass không-subject, rồi từng VDU, rồi từng VNFC (snapshot đã sort theo path).
+- Bind ba đối tượng vào data context: `Ctx` (snapshot, không đổi giữa các pass), `Subject` (đối tượng của pass này), `Result` (sink).
+- `Subject` chỉ mang danh tính — `Path()`, `Kind()`. Mọi câu hỏi vẫn đi qua fact group với path truyền vào; không nhân đôi fact surface lên Subject.
+- Pass không-subject là bắt buộc: thiếu nó thì snapshot không có VDU/VNFC nào sẽ không chạy rule lần nào. `Subject` luôn khác nil, path rỗng.
+- Rule không nhắc `Subject` chạy trên mọi pass và assert cùng một claim mỗi lần; re-assert cùng id với cùng metadata là idempotent nên kết quả không đổi.
+- Rule fan-out phải ghép subject vào root-cause ID (`"rc-x-" + Subject.Path()`). Quên thì cùng id mang hai entity khác nhau và row FAILED vì conflicting entity.
+- Row vẫn là ranh giới hỏng: mọi pass dùng chung một sink và một ngân sách timeout, một pass sinh output sai thì discard toàn bộ row.
+- Runtime tách `Prepare` (một lần mỗi row: compile cache + clone knowledge base) và `Session.Run` (một lần mỗi pass). Grule reset working memory và bỏ retract ở đầu mỗi lần chạy nên KB dùng lại được giữa các pass.
+- `RuleExecution.Passes` ghi số pass đã chạy, kể cả khi row FAILED — để phân biệt document hỏng ở subject đầu tiên với document hỏng ở subject thứ bốn mươi.
 
 ## 5. Runner, timeout và status
 
@@ -194,7 +209,7 @@ Recommend(rootCauseID, code, moInstance, op string, value any)
   - Idempotent duplicate, metadata conflict và action dedup.
   - Root-cause/action deterministic ordering.
 - GRL runtime/cache tests:
-  - Nhiều matching rules trong cùng document fire đúng một lần theo salience.
+  - Nhiều matching rules trong cùng document fire đúng một lần mỗi pass, theo salience.
   - Non-matching rules không sinh output.
   - Auto-retract không dừng các rules còn lại.
   - Rule fire nhưng không tạo cause chạm cycle guard.
@@ -228,5 +243,5 @@ go test -race ./...
 - Context Builder và shared `ContextSnapshot` đã hoàn thành theo task trước.
 - Không triển khai gRPC server, Analysis Service hoặc response mapper.
 - Không thay schema `rca_rule` và không thêm rule bundle/versioning.
-- Không thêm rule selector, capability declarations, Subject iteration, ranking hoặc Decision stage.
+- Không thêm rule selector, capability declarations, ranking hoặc Decision stage.
 - Không giới hạn số root causes/actions; chỉ giữ per-row timeout và GRL cycle guard để bảo vệ runtime.

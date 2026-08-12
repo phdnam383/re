@@ -1,83 +1,74 @@
 rule SIPGWLoadBalancerDown "The I-CSCF load balancer is unavailable" salience 100 {
     when
         Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
-        Ctx.Link.IsDown(
-            "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
-        ) &&
-        Ctx.VNFC.IsDown(
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
-        )
+        Ctx.Link.IsSeveredTo("ims.vdu_sb_sip_core", Subject.Path()) &&
+        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_loadbalancer_icscf" &&
+        Ctx.VNFC.IsDown(Subject.Path())
     then
         Result.Assert(
-            "rc-sipgw-loadbalancer-down",
+            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF load balancer is TERMINATED",
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+            "I-CSCF load balancer instance is TERMINATED",
+            Subject.Path(),
             "PRIMARY",
             0.35
         );
         Result.Recommend(
-            "rc-sipgw-loadbalancer-down",
+            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
             "RESTART_VNFC",
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-            "REPLACE",
-            "RESTART"
+            Subject.Path(),
+            "REPLACE"
         );
 }
 
 rule SIPGWICSCFDown "The I-CSCF SIP component is unavailable" salience 90 {
     when
         Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
-        Ctx.Link.IsDown(
-            "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
+        Ctx.Link.IsSeveredBetween(
+            "ims.vdu_sb_sip_core",
+            "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.IsDown(
-            "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1"
-        )
+        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_sip_icscf" &&
+        Ctx.VNFC.IsDown(Subject.Path())
     then
         Result.Assert(
-            "rc-sipgw-icscf-down",
+            "rc-sipgw-icscf-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF SIP component is TERMINATED",
-            "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+            "I-CSCF SIP component instance is TERMINATED",
+            Subject.Path(),
             "PRIMARY",
             0.35
         );
         Result.Recommend(
-            "rc-sipgw-icscf-down",
+            "rc-sipgw-icscf-down-" + Subject.Path(),
             "RESTART_VNFC",
-            "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
-            "REPLACE",
-            "RESTART"
+            Subject.Path(),
+            "REPLACE"
         );
 }
 
 rule SIPGWLogicDown "The SIPGW logic component is unavailable" salience 80 {
     when
         Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
-        Ctx.Link.IsDown(
-            "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-            "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
+        Ctx.Link.IsSeveredBetween(
+            "ims.vdu_sb_sip_core",
+            "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.IsDown(
-            "ims.vdu_cs_logic.vnfc_cs_logic_1"
-        )
+        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_logic" &&
+        Ctx.VNFC.IsDown(Subject.Path())
     then
         Result.Assert(
-            "rc-sipgw-logic-down",
+            "rc-sipgw-logic-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "SIPGW logic component is TERMINATED",
-            "ims.vdu_cs_logic.vnfc_cs_logic_1",
+            "SIPGW logic component instance is TERMINATED",
+            Subject.Path(),
             "PRIMARY",
             0.35
         );
         Result.Recommend(
-            "rc-sipgw-logic-down",
+            "rc-sipgw-logic-down-" + Subject.Path(),
             "RESTART_VNFC",
-            "ims.vdu_cs_logic.vnfc_cs_logic_1",
-            "REPLACE",
-            "RESTART"
+            Subject.Path(),
+            "REPLACE"
         );
 }

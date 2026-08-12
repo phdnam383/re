@@ -12,11 +12,17 @@ import (
 
 // Fact names bound into the GRL data context. These are the identifiers rule
 // authors write, so they are part of the rule-authoring contract and not an
-// implementation detail. Exactly two are bound: everything a rule may read is
-// under Ctx, and everything it may write goes through Result.
+// implementation detail.
+//
+// Three are bound, and the split is the execution model made visible: Ctx is
+// the snapshot and is identical for every pass of an analysis, Subject is the
+// one entity this pass is about, and Result is the only thing a rule may write
+// to. A rule that mentions no Subject is a rule about the snapshot as a whole,
+// and it runs on every pass and says the same thing each time.
 const (
-	factCtx    = "Ctx"
-	factResult = "Result"
+	factCtx     = "Ctx"
+	factSubject = "Subject"
+	factResult  = "Result"
 )
 
 // GRLRuntime executes rule documents written in GRL.
@@ -33,7 +39,39 @@ func NewGRLRuntime() *GRLRuntime {
 
 var _ Runtime = (*GRLRuntime)(nil)
 
-// Execute runs one document to completion.
+// Prepare compiles the document (or finds it already compiled) and clones one
+// knowledge base for the row to run every pass against.
+//
+// One clone per row rather than one per pass. Grule resets the working memory
+// and un-retracts every rule at the start of each ExecuteWithContext, so a
+// knowledge base is reusable across passes; what it is not is safe to share
+// between two concurrent analyses, which is what the clone is for.
+func (r *GRLRuntime) Prepare(rule analysis.RuleDefinition) (Session, error) {
+	c, err := r.cache.get(rule)
+	if err != nil {
+		return nil, err
+	}
+
+	kb, err := c.instance(rule.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &grlSession{rule: rule, kb: kb, maxCycle: uint64(c.ruleCount)}, nil
+}
+
+// grlSession is one document prepared for one row.
+type grlSession struct {
+	rule analysis.RuleDefinition
+	kb   *ast.KnowledgeBase
+
+	// maxCycle is the rule count of the document, captured at compile time.
+	maxCycle uint64
+}
+
+var _ Session = (*grlSession)(nil)
+
+// Run executes the document once, for one subject.
 //
 // Grule fires exactly one rule per cycle and then re-evaluates every remaining
 // rule, so a rule whose "then" does not falsify its own "when" would be
@@ -43,28 +81,32 @@ var _ Runtime = (*GRLRuntime)(nil)
 // Retraction is used rather than DataContext.Complete(): completing ends the
 // whole run at the first assertion, and an rca_rule row is a scenario document
 // whose later rules must still get their turn.
-func (r *GRLRuntime) Execute(
+//
+// Retraction is also per pass, not per row, and that is what makes fanning out
+// work at all: the same rule must be free to fire again for the next instance.
+// Grule clears it on entry here, so nothing needs to be undone between passes.
+func (s *grlSession) Run(
 	ctx context.Context,
-	rule analysis.RuleDefinition,
 	facts *Facts,
+	subject *SubjectFacts,
 	out *Result,
 ) error {
-	c, err := r.cache.get(rule)
-	if err != nil {
-		return err
-	}
-
-	kb, err := c.instance(rule.ID)
-	if err != nil {
-		return err
+	if subject == nil {
+		// A nil binding would make Subject.Path() a reflection panic inside
+		// Grule, reported as a failed evaluation — a rule failing for a reason
+		// that has nothing to do with the rule.
+		subject = noSubject
 	}
 
 	dctx := ast.NewDataContext()
 	if err := dctx.Add(factCtx, facts); err != nil {
-		return fmt.Errorf("rca_rule %s: bind %s: %w", rule.ID, factCtx, err)
+		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factCtx, err)
+	}
+	if err := dctx.Add(factSubject, subject); err != nil {
+		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factSubject, err)
 	}
 	if err := dctx.Add(factResult, out); err != nil {
-		return fmt.Errorf("rca_rule %s: bind %s: %w", rule.ID, factResult, err)
+		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factResult, err)
 	}
 
 	// The sink learns which rule is speaking from the data context, which
@@ -72,7 +114,7 @@ func (r *GRLRuntime) Execute(
 	// callback keeps the rule library out of result.go.
 	out.retract = func() {
 		if entry := dctx.GetRuleEntry(); entry != nil {
-			kb.RetractRule(entry.RuleName)
+			s.kb.RetractRule(entry.RuleName)
 		}
 	}
 	defer func() { out.retract = nil }()
@@ -85,7 +127,7 @@ func (r *GRLRuntime) Execute(
 	// retracted, keeps being selected, and trips this bound — which is the
 	// point: it is a rule with a "then" that does nothing, and failing the row
 	// says so instead of letting it spin to the library default of 5000.
-	gengine.MaxCycle = uint64(c.ruleCount)
+	gengine.MaxCycle = s.maxCycle
 
 	// Surface evaluation errors. Without this a rule whose condition blew up —
 	// a nil dereference in a fact call, a type mismatch — is logged and treated
@@ -93,8 +135,8 @@ func (r *GRLRuntime) Execute(
 	// never happen: it turns a broken rule into a silent negative.
 	gengine.ReturnErrOnFailedRuleEvaluation = true
 
-	if err := gengine.ExecuteWithContext(ctx, dctx, kb); err != nil {
-		return fmt.Errorf("rca_rule %s (%s): execute: %w", rule.ID, rule.Name, err)
+	if err := gengine.ExecuteWithContext(ctx, dctx, s.kb); err != nil {
+		return fmt.Errorf("rca_rule %s (%s): execute: %w", s.rule.ID, s.rule.Name, err)
 	}
 	return nil
 }

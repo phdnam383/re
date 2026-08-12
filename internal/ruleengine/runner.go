@@ -76,6 +76,17 @@ func runRules(
 // runOne executes a single row and returns its execution record together with
 // the merged set to adopt, or nil when the row's output was discarded.
 //
+// The document is run once per subject — the no-subject pass, then every VDU,
+// then every VNFC — so a rule states what it concludes about one entity and the
+// runner is what applies it to however many entities exist. That is what keeps
+// a rule set from having to name instances that scaling creates and destroys.
+//
+// All passes share one sink and one timeout, because they are one row. The row
+// stays the atomic unit: a document that produces invalid output for its
+// fortieth subject discards what it concluded about the first thirty-nine,
+// since a document that gets one instance wrong is a document to fix, not a
+// result to keep part of.
+//
 // The merge is attempted against a copy. That is what makes the row atomic: a
 // document whose third rule contradicts an earlier document must leave nothing
 // behind from its first two, and there is no way to know it conflicts until
@@ -93,44 +104,72 @@ func runOne(
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	sink := NewResult()
-	err := execute(rctx, rt, rule, facts, sink)
+	session, err := prepare(rt, rule)
 	if err != nil {
-		return failedExecution(rule, err, time.Since(start)), nil
+		return failedExecution(rule, err, 0, time.Since(start)), nil
 	}
-	// Invalid output is a failure of the row even though the runtime returned
-	// cleanly: GRL has no error channel, so a rule that stated a confidence of
-	// 35 or named a cause it never asserted reports it here.
-	if err := sink.Err(); err != nil {
-		return failedExecution(rule, err, time.Since(start)), nil
+
+	sink := NewResult()
+	passes := 0
+
+	for _, subject := range facts.subjects() {
+		// The budget belongs to the row, not to the pass. A document that needs
+		// longer than this across all its subjects is one to look at, and the
+		// rows behind it still deserve their turn inside the request's deadline.
+		if err := rctx.Err(); err != nil {
+			return failedExecution(rule, err, passes, time.Since(start)), nil
+		}
+
+		if err := run(rctx, session, facts, subject, sink); err != nil {
+			return failedExecution(rule, err, passes, time.Since(start)), nil
+		}
+		passes++
+
+		// Invalid output is a failure of the row even though the runtime
+		// returned cleanly: GRL has no error channel, so a rule that stated a
+		// confidence of 35 or named a cause it never asserted reports it here.
+		// Checked per pass so the count says which subject broke it.
+		if err := sink.Err(); err != nil {
+			return failedExecution(rule, err, passes, time.Since(start)), nil
+		}
 	}
 
 	next := merged.clone()
 	if err := next.mergeFrom(sink.causes); err != nil {
-		return failedExecution(rule, err, time.Since(start)), nil
+		return failedExecution(rule, err, passes, time.Since(start)), nil
 	}
 
-	return completedExecution(rule, len(sink.causes.order), time.Since(start)), next
+	return completedExecution(rule, len(sink.causes.order), passes, time.Since(start)), next
 }
 
-// execute isolates the runtime call from a panic.
+// prepare isolates compilation from a panic.
 //
 // Grule recovers panics raised while evaluating and executing a rule, but the
 // compile and clone paths ahead of that are reached with content loaded from
 // the database. A malformed document must fail its own row, never the process.
-func execute(
+func prepare(rt Runtime, rule analysis.RuleDefinition) (s Session, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s, err = nil, fmt.Errorf("rca_rule %s (%s): panic: %v", rule.ID, rule.Name, r)
+		}
+	}()
+	return rt.Prepare(rule)
+}
+
+// run isolates one pass from a panic, for the same reason.
+func run(
 	ctx context.Context,
-	rt Runtime,
-	rule analysis.RuleDefinition,
+	session Session,
 	facts *Facts,
+	subject *SubjectFacts,
 	sink *Result,
 ) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("rca_rule %s (%s): panic: %v", rule.ID, rule.Name, r)
+			err = fmt.Errorf("subject %q: panic: %v", subject.Path(), r)
 		}
 	}()
-	return rt.Execute(ctx, rule, facts, sink)
+	return session.Run(ctx, facts, subject, sink)
 }
 
 // sortRules puts the rule set in execution order: salience descending, then

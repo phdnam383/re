@@ -288,6 +288,45 @@ func TestVNFCTerminatedIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestVNFCParent(t *testing.T) {
+	f := testFacts(t)
+
+	tests := []struct {
+		name, path, want string
+	}{
+		{"instance", "ims.vdu_sb_logic.vnfc_sb_logic_1", "ims.vdu_sb_logic"},
+		{"another vdu", "ims.vdu_healthy.vnfc_healthy_1", "ims.vdu_healthy"},
+		{"missing vnfc", "ims.nothing.vnfc_1", ""},
+		{
+			// A VDU is not a VNFC, so it has no VNFC parent. This is what keeps
+			// a rule scoped with Parent(Subject.Path()) == vdu from also firing
+			// on the pass where that VDU is itself the subject.
+			name: "a vdu path is not in the vnfc index", path: "ims.vdu_sb_logic", want: "",
+		},
+		{"empty", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.VNFC.Parent(tc.path); got != tc.want {
+				t.Errorf("Parent(%q) = %q, want %q", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVNFCParentComesFromTheSnapshotNotThePath(t *testing.T) {
+	// Containment is what the Context Builder recorded, not what the path
+	// looks like. Trimming the last label would be a second answer to a
+	// question the snapshot already answers, and this fixture is what tells
+	// the two apart.
+	snap := analysis.ContextSnapshot{
+		VNFCs: []analysis.VNFC{{Path: "ims.vdu_a.vnfc_1", VDUPath: "ims.vdu_elsewhere"}},
+	}
+	if got := NewFacts(snap).VNFC.Parent("ims.vdu_a.vnfc_1"); got != "ims.vdu_elsewhere" {
+		t.Errorf("Parent = %q, want the recorded VDUPath", got)
+	}
+}
+
 // --- link ----------------------------------------------------------------
 
 func TestLinkStatus(t *testing.T) {
@@ -317,6 +356,117 @@ func TestLinkStatus(t *testing.T) {
 			}
 			if got := f.Link.IsDown(tc.src, tc.dst); got != tc.wantDown {
 				t.Errorf("IsDown(%q,%q) = %v, want %v", tc.src, tc.dst, got, tc.wantDown)
+			}
+		})
+	}
+}
+
+// severedSnapshot carries link sets between VDU pairs that differ only in how
+// many of their edges are usable, which is the only thing the quantified link
+// facts are about.
+func severedSnapshot() analysis.ContextSnapshot {
+	return analysis.ContextSnapshot{
+		Status: analysis.StatusComplete,
+		Links: []analysis.Link{
+			// Every edge unusable, across two source instances.
+			{SrcPath: "ims.vdu_src.vnfc_src_1", DstPath: "ims.vdu_gone.vnfc_gone_1", Status: "DOWN"},
+			{SrcPath: "ims.vdu_src.vnfc_src_2", DstPath: "ims.vdu_gone.vnfc_gone_1", Status: "degraded"},
+
+			// One instance of the destination is cut off, the other is not.
+			{SrcPath: "ims.vdu_src.vnfc_src_1", DstPath: "ims.vdu_mixed.vnfc_mixed_1", Status: "DOWN"},
+			{SrcPath: "ims.vdu_src.vnfc_src_2", DstPath: "ims.vdu_mixed.vnfc_mixed_1", Status: "DOWN"},
+			{SrcPath: "ims.vdu_src.vnfc_src_1", DstPath: "ims.vdu_mixed.vnfc_mixed_2", Status: "UP"},
+
+			// Status the platform could not determine.
+			{SrcPath: "ims.vdu_src.vnfc_src_1", DstPath: "ims.vdu_murky.vnfc_murky_1", Status: "UNKNOWN"},
+
+			// A destination VDU whose name is a prefix of another one.
+			{SrcPath: "ims.vdu_src.vnfc_src_1", DstPath: "ims.vdu_gone_backup.vnfc_1", Status: "UP"},
+		},
+	}
+}
+
+func TestLinkIsSeveredBetween(t *testing.T) {
+	f := NewFacts(severedSnapshot())
+
+	tests := []struct {
+		name, src, dst string
+		want           bool
+	}{
+		{"every edge unusable", "ims.vdu_src", "ims.vdu_gone", true},
+		{
+			// The whole reason the quantifier is "every" and not "any": one
+			// live path out of three means traffic still flows, and the more
+			// the VDUs scale out the more often "any" would be satisfied.
+			name: "one edge still up", src: "ims.vdu_src", dst: "ims.vdu_mixed", want: false,
+		},
+		{
+			// Vacuous truth is the trap. No edges means the snapshot was never
+			// given the topology, and that must not read as an outage.
+			name: "no edges at all", src: "ims.vdu_src", dst: "ims.vdu_absent", want: false,
+		},
+		{"unknown is not evidence", "ims.vdu_src", "ims.vdu_murky", false},
+		{
+			// The prefix trap: vdu_gone must not swallow vdu_gone_backup, whose
+			// only edge is UP.
+			name: "sibling vdu sharing a prefix", src: "ims.vdu_src", dst: "ims.vdu_gone_backup", want: false,
+		},
+		{"empty arguments", "", "ims.vdu_gone", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.Link.IsSeveredBetween(tc.src, tc.dst); got != tc.want {
+				t.Errorf("IsSeveredBetween(%q,%q) = %v, want %v", tc.src, tc.dst, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLinkIsSeveredTo(t *testing.T) {
+	f := NewFacts(severedSnapshot())
+
+	tests := []struct {
+		name, src, dst string
+		want           bool
+	}{
+		{
+			// This is the per-instance form: mixed_1 is cut off from every
+			// source even though its VDU as a whole is still reachable.
+			name: "instance cut off inside a reachable vdu",
+			src:  "ims.vdu_src", dst: "ims.vdu_mixed.vnfc_mixed_1", want: true,
+		},
+		{
+			name: "sibling instance still reachable",
+			src:  "ims.vdu_src", dst: "ims.vdu_mixed.vnfc_mixed_2", want: false,
+		},
+		{"no edges to this instance", "ims.vdu_src", "ims.vdu_mixed.vnfc_mixed_3", false},
+		{"empty destination", "ims.vdu_src", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.Link.IsSeveredTo(tc.src, tc.dst); got != tc.want {
+				t.Errorf("IsSeveredTo(%q,%q) = %v, want %v", tc.src, tc.dst, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLinkDownCountBetween(t *testing.T) {
+	f := NewFacts(severedSnapshot())
+
+	tests := []struct {
+		name, src, dst string
+		want           int
+	}{
+		{"all unusable", "ims.vdu_src", "ims.vdu_gone", 2},
+		{"two of three", "ims.vdu_src", "ims.vdu_mixed", 2},
+		{"unknown is not counted", "ims.vdu_src", "ims.vdu_murky", 0},
+		{"no edges", "ims.vdu_src", "ims.vdu_absent", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.Link.DownCountBetween(tc.src, tc.dst); got != tc.want {
+				t.Errorf("DownCountBetween(%q,%q) = %d, want %d", tc.src, tc.dst, got, tc.want)
 			}
 		})
 	}

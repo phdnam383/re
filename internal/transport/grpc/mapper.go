@@ -130,19 +130,25 @@ func actionsToPB(causeID string, actions []analysis.RecommendedAction) ([]*mdafv
 
 	out := make([]*mdafv1.RecommendedAction, 0, len(actions))
 	for _, a := range actions {
-		// structpb.NewValue carries the JSON type through, including null:
-		// a nil value becomes a protobuf NullValue rather than an absent
-		// field, so a caller can tell "set this to null" from "no value was
-		// given".
-		value, err := structpb.NewValue(a.Value)
-		if err != nil {
-			// The Result sink already rejected values that cannot be JSON, so
-			// this is unreachable through the rule path. It is still an error
-			// rather than a panic or a dropped field: shipping an action with
-			// its value silently missing would propose a change without
-			// saying what to change it to.
-			return nil, fmt.Errorf("map action %q of root cause %q: value %T is not representable: %w",
-				a.Code, causeID, a.Value, err)
+		// An action without a value leaves the field unset. Not every action
+		// takes one — RESTART_VNFC says all it means in its code — and sending
+		// an explicit null instead would tell a caller to set something to
+		// null, which is a different instruction from having nothing to set.
+		var value *structpb.Value
+		if a.Value != nil {
+			// structpb.NewValue carries the JSON type through, so a number
+			// stays a number and a string stays a string.
+			v, err := structpb.NewValue(a.Value)
+			if err != nil {
+				// The Result sink already rejected values that cannot be JSON,
+				// so this is unreachable through the rule path. It is still an
+				// error rather than a panic or a dropped field: shipping an
+				// action with its value silently missing would propose a change
+				// without saying what to change it to.
+				return nil, fmt.Errorf("map action %q of root cause %q: value %T is not representable: %w",
+					a.Code, causeID, a.Value, err)
+			}
+			value = v
 		}
 		out = append(out, &mdafv1.RecommendedAction{
 			Code:       a.Code,

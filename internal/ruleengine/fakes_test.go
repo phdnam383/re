@@ -36,8 +36,16 @@ type scriptedRuntime struct {
 	mu    sync.Mutex
 	calls []string
 
-	// script maps rule name to what that row should do.
+	// script maps rule name to what that row should do. It is called once per
+	// subject, like a real document is.
 	script map[string]func(out *Result) error
+
+	// withSubject replaces script for the tests that are about fanning out, so
+	// a row can behave differently for each subject the way GRL does.
+	withSubject func(out *Result, subject *SubjectFacts, facts *Facts) error
+
+	// observe records every subject a pass was given.
+	observe func(subject *SubjectFacts)
 
 	// delay is applied before the script runs, used by the timeout tests.
 	delay time.Duration
@@ -47,25 +55,39 @@ func newScriptedRuntime() *scriptedRuntime {
 	return &scriptedRuntime{script: map[string]func(out *Result) error{}}
 }
 
-func (r *scriptedRuntime) Execute(
-	ctx context.Context,
-	rule analysis.RuleDefinition,
-	_ *Facts,
-	out *Result,
-) error {
+// Prepare records the row, so calls() stays one entry per row however many
+// subjects the snapshot offers — the order rows run in is what these tests are
+// about, and counting passes here would bury it.
+func (r *scriptedRuntime) Prepare(rule analysis.RuleDefinition) (Session, error) {
 	r.mu.Lock()
 	r.calls = append(r.calls, rule.Name)
 	r.mu.Unlock()
+	return &scriptedSession{rt: r, rule: rule}, nil
+}
 
-	if r.delay > 0 {
+type scriptedSession struct {
+	rt   *scriptedRuntime
+	rule analysis.RuleDefinition
+}
+
+func (s *scriptedSession) Run(ctx context.Context, facts *Facts, subject *SubjectFacts, out *Result) error {
+	if s.rt.observe != nil {
+		s.rt.observe(subject)
+	}
+
+	if s.rt.delay > 0 {
 		select {
-		case <-time.After(r.delay):
+		case <-time.After(s.rt.delay):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 
-	fn, ok := r.script[rule.Name]
+	if s.rt.withSubject != nil {
+		return s.rt.withSubject(out, subject, facts)
+	}
+
+	fn, ok := s.rt.script[s.rule.Name]
 	if !ok {
 		return nil
 	}
@@ -86,25 +108,26 @@ type selectiveDelayRuntime struct {
 	delay time.Duration
 }
 
-func (r *selectiveDelayRuntime) Execute(
-	ctx context.Context,
-	rule analysis.RuleDefinition,
-	facts *Facts,
-	out *Result,
-) error {
-	if rule.Name == r.slow {
-		r.mu.Lock()
-		r.calls = append(r.calls, rule.Name)
-		r.mu.Unlock()
-
-		select {
-		case <-time.After(r.delay):
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+func (r *selectiveDelayRuntime) Prepare(rule analysis.RuleDefinition) (Session, error) {
+	inner, err := r.scriptedRuntime.Prepare(rule)
+	if err != nil {
+		return nil, err
 	}
-	return r.scriptedRuntime.Execute(ctx, rule, facts, out)
+	if rule.Name != r.slow {
+		return inner, nil
+	}
+	return &slowSession{delay: r.delay}, nil
+}
+
+type slowSession struct{ delay time.Duration }
+
+func (s *slowSession) Run(ctx context.Context, _ *Facts, _ *SubjectFacts, _ *Result) error {
+	select {
+	case <-time.After(s.delay):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // errRuntimeBroken is what a scripted row returns when the test needs it to

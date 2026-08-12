@@ -1,15 +1,13 @@
 rule TPSReplicaDegradation "Replica degradation concentrates TPS load" salience 100 {
     when
         Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.Alerts.OverloadCount(
-            "ims.vdu_sb_logic.vnfc_sb_logic_1"
-        ) > 1 &&
+        Ctx.Alerts.OverloadCount("ims.vdu_sb_logic") > 1 &&
         Ctx.VDU.IsDegraded("ims.vdu_sb_logic")
     then
         Result.Assert(
             "rc-tps-replica-degradation",
             "REPLICA_DEGRADATION",
-            "Only one of three sb_logic replicas is ready while TPS load is high",
+            "sb_logic is running fewer replicas than declared while TPS load is high",
             "ims.vdu_sb_logic",
             "PRIMARY",
             0.55
@@ -19,37 +17,30 @@ rule TPSReplicaDegradation "Replica degradation concentrates TPS load" salience 
             "RESTORE_REPLICAS",
             "ims.vdu_sb_logic",
             "REPLACE",
-            3
+            Ctx.VDU.DesiredReplicas("ims.vdu_sb_logic")
         );
 }
 
 rule TPSHighLogFileConfiguration "High log-file count increases RAM usage" salience 90 {
     when
         Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.Alerts.HasOverload(
-            "ims.vdu_sb_logic.vnfc_sb_logic_1"
-        ) &&
-        Ctx.Configuration.Has(
-            "ims.vdu_sb_logic.vnfc_sb_logic_1",
-            "number_of_log_file"
-        ) &&
-        Ctx.Configuration.GetFloat(
-            "ims.vdu_sb_logic.vnfc_sb_logic_1",
-            "number_of_log_file"
-        ) >= 3.0
+        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_sb_logic" &&
+        Ctx.Alerts.HasOverload(Subject.Path()) &&
+        Ctx.Configuration.Has(Subject.Path(), "number_of_log_file") &&
+        Ctx.Configuration.GetFloat(Subject.Path(), "number_of_log_file") >= 3.0
     then
         Result.Assert(
-            "rc-tps-high-log-file-config",
+            "rc-tps-high-log-file-config-" + Subject.Path(),
             "HIGH_LOG_FILE_CONFIG",
             "number_of_log_file is too high and increases RAM consumption",
-            "ims.vdu_sb_logic.vnfc_sb_logic_1",
+            Subject.Path(),
             "CONTRIBUTING",
             0.30
         );
         Result.Recommend(
-            "rc-tps-high-log-file-config",
+            "rc-tps-high-log-file-config-" + Subject.Path(),
             "SET_CONFIG",
-            "ims.vdu_sb_logic.vnfc_sb_logic_1",
+            Subject.Path(),
             "REPLACE",
             3
         );
