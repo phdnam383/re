@@ -115,7 +115,7 @@ func TestOneFailingRowDoesNotEraseTheOthers(t *testing.T) {
 	if got.Status != analysis.RCAStatusPartial {
 		t.Errorf("status = %s, want PARTIAL", got.Status)
 	}
-	if len(got.RootCauses) != 1 || got.RootCauses[0].ID != "rc-good" {
+	if len(got.RootCauses) != 1 || got.RootCauses[0].Summary != "rc-good" {
 		t.Errorf("root causes = %v, want [rc-good]", got.RootCauses)
 	}
 
@@ -153,11 +153,10 @@ func TestAPanickingRowFailsOnlyItself(t *testing.T) {
 }
 
 func TestInvalidOutputFailsTheRowEvenWhenTheRuntimeSucceeds(t *testing.T) {
-	// GRL has no error channel, so a rule that stated a confidence of 35 or
-	// named a cause it never asserted reports it through the sink.
+	// GRL has no error channel, so invalid output reports through the sink.
 	rt := newScriptedRuntime()
 	rt.script["invalid"] = func(out *Result) error {
-		out.Assert("rc-1", "C", "s", "ims.a", analysis.RolePrimary, 35)
+		out.Assert("C", "NOT_A_ROLE", "s")
 		return nil
 	}
 	rt.script["good"] = assertOne("rc-good", "ims.a")
@@ -174,7 +173,7 @@ func TestInvalidOutputFailsTheRowEvenWhenTheRuntimeSucceeds(t *testing.T) {
 	if ex := executionByName(t, got, "invalid"); ex.Status != analysis.RuleStatusFailed {
 		t.Errorf("status = %s, want FAILED", ex.Status)
 	}
-	if len(got.RootCauses) != 1 || got.RootCauses[0].ID != "rc-good" {
+	if len(got.RootCauses) != 1 || got.RootCauses[0].Summary != "rc-good" {
 		t.Errorf("root causes = %v, want only rc-good", got.RootCauses)
 	}
 }
@@ -187,8 +186,8 @@ func TestAFailingRowDiscardsEverythingItAsserted(t *testing.T) {
 	// smaller conclusion, it is a wrong one.
 	rt := newScriptedRuntime()
 	rt.script["partial"] = func(out *Result) error {
-		out.Assert("rc-a", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-		out.Assert("rc-b", "C", "s", "ims.b", analysis.RolePrimary, 0.5)
+		out.Assert("C", analysis.RolePrimary, "a")
+		out.Assert("C", analysis.RolePrimary, "b")
 		return errRuntimeBroken
 	}
 
@@ -211,13 +210,15 @@ func TestAConflictingRowIsDiscardedWhole(t *testing.T) {
 	// is attempted against a copy.
 	rt := newScriptedRuntime()
 	rt.script["first"] = func(out *Result) error {
-		out.Assert("rc-shared", "C", "summary", "ims.a", analysis.RolePrimary, 0.5)
+		out.Assert("C", analysis.RolePrimary, "summary")
+		out.RecommendRestartVNFC([]string{"ims.a"})
 		return nil
 	}
 	rt.script["second"] = func(out *Result) error {
-		out.Assert("rc-new", "C", "s", "ims.z", analysis.RolePrimary, 0.5)
-		// Same id, different claim.
-		out.Assert("rc-shared", "C", "a different summary", "ims.a", analysis.RolePrimary, 0.5)
+		out.Assert("OTHER", analysis.RolePrimary, "new")
+		out.RecommendRestartVNFC([]string{"ims.z"})
+		out.Assert("C", analysis.RolePrimary, "summary")
+		out.RecommendSetConfig("ims.a", "ims.a_num_of_log_file", 1)
 		return nil
 	}
 
@@ -235,9 +236,9 @@ func TestAConflictingRowIsDiscardedWhole(t *testing.T) {
 	}
 
 	// The first row keeps its conclusion; the second loses everything,
-	// including rc-new, which conflicted with nothing.
-	if len(got.RootCauses) != 1 || got.RootCauses[0].ID != "rc-shared" {
-		t.Fatalf("root causes = %v, want only rc-shared", got.RootCauses)
+	// including its unrelated new cause.
+	if len(got.RootCauses) != 1 || got.RootCauses[0].Summary != "summary" {
+		t.Fatalf("root causes = %v, want only the first claim", got.RootCauses)
 	}
 	if got.RootCauses[0].Summary != "summary" {
 		t.Errorf("summary = %q, want the first row's claim untouched", got.RootCauses[0].Summary)
@@ -247,22 +248,22 @@ func TestAConflictingRowIsDiscardedWhole(t *testing.T) {
 	if second.Status != analysis.RuleStatusFailed {
 		t.Errorf("second status = %s, want FAILED", second.Status)
 	}
-	if !strings.Contains(second.Error, "conflicting summary") {
+	if !strings.Contains(second.Error, "conflicting actions") {
 		t.Errorf("second error = %q, want the conflict named", second.Error)
 	}
 }
 
-func TestCorroboratingRowsUnionTheirActions(t *testing.T) {
+func TestCorroboratingRowsUnionTheirComponents(t *testing.T) {
 	rt := newScriptedRuntime()
-	same := func(code string) func(*Result) error {
+	same := func(path string) func(*Result) error {
 		return func(out *Result) error {
-			out.Assert("rc-shared", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-			out.Recommend("rc-shared", code, "ims.a", analysis.OpReplace, 1)
+			out.Assert("C", analysis.RolePrimary, "s")
+			out.RecommendRestartVNFC([]string{path})
 			return nil
 		}
 	}
-	rt.script["first"] = same("ONE")
-	rt.script["second"] = same("TWO")
+	rt.script["first"] = same("ims.a")
+	rt.script["second"] = same("ims.b")
 
 	e := newEngine(t, Options{
 		Rules:   fakeRepo{rules: []analysis.RuleDefinition{rule("first", 100), rule("second", 90)}},
@@ -276,8 +277,8 @@ func TestCorroboratingRowsUnionTheirActions(t *testing.T) {
 	if len(got.RootCauses) != 1 {
 		t.Fatalf("root causes = %d, want 1", len(got.RootCauses))
 	}
-	if n := len(got.RootCauses[0].Actions); n != 2 {
-		t.Errorf("actions = %d, want 2", n)
+	if n := len(got.RootCauses[0].Components); n != 2 {
+		t.Errorf("components = %d, want 2", n)
 	}
 	// Each row still reports what it asserted, even though they merged into one.
 	if ex := executionByName(t, got, "second"); ex.RootCauseCount != 1 {
@@ -334,7 +335,7 @@ func TestARowTimeoutDoesNotStopTheRowsBehindIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Analyze = %v, want nil", err)
 	}
-	if len(got.RootCauses) != 1 || got.RootCauses[0].ID != "rc-fast" {
+	if len(got.RootCauses) != 1 || got.RootCauses[0].Summary != "rc-fast" {
 		t.Errorf("root causes = %v, want [rc-fast]", got.RootCauses)
 	}
 	if ex := executionByName(t, got, "slow"); ex.Status != analysis.RuleStatusFailed {
@@ -373,7 +374,8 @@ func TestCancellationMarksTheRemainingRowsSkipped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	rt.script["first"] = func(out *Result) error {
-		out.Assert("rc-first", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
+		out.Assert("C", analysis.RolePrimary, "rc-first")
+		out.RecommendRestartVNFC([]string{"ims.a"})
 		cancel()
 		return nil
 	}
@@ -555,13 +557,15 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 	makeEngine := func() *Engine {
 		rt := newScriptedRuntime()
 		rt.script["a"] = func(out *Result) error {
-			out.Assert("rc-a", "C", "s", "ims.a", analysis.RolePrimary, 0.5)
-			out.Recommend("rc-a", "Z_CODE", "ims.a", analysis.OpReplace, 1)
-			out.Recommend("rc-a", "A_CODE", "ims.a", analysis.OpReplace, 1)
-			out.Recommend("rc-a", "HIGH", "ims.a", analysis.OpAdd, 2)
+			out.Assert("C", analysis.RolePrimary, "a")
+			out.RecommendRestartVNFC([]string{"ims.z", "ims.a"})
 			return nil
 		}
-		rt.script["b"] = assertOne("rc-b", "ims.b")
+		rt.script["b"] = func(out *Result) error {
+			out.Assert("C", analysis.RolePrimary, "b")
+			out.RecommendRestartVNFC([]string{"ims.b"})
+			return nil
+		}
 		return newEngine(t, Options{
 			Rules:   fakeRepo{rules: []analysis.RuleDefinition{rule("b", 50), rule("a", 50)}},
 			Runtime: rt,
@@ -576,9 +580,9 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 		}
 		var sb strings.Builder
 		for _, c := range got.RootCauses {
-			sb.WriteString(c.ID)
-			for _, a := range c.Actions {
-				sb.WriteString("|" + a.Code)
+			sb.WriteString(c.Summary)
+			for _, component := range c.Components {
+				sb.WriteString("|" + component.Entity)
 			}
 			sb.WriteString(";")
 		}
@@ -590,7 +594,7 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 			t.Fatalf("run %d produced %s, want %s", i, sb.String(), first)
 		}
 	}
-	if first != "rc-a|A_CODE|HIGH|Z_CODE;rc-b;" {
+	if first != "a|ims.a|ims.z;b|ims.b;" {
 		t.Errorf("output = %s", first)
 	}
 }

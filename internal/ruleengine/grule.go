@@ -14,15 +14,12 @@ import (
 // authors write, so they are part of the rule-authoring contract and not an
 // implementation detail.
 //
-// Three are bound, and the split is the execution model made visible: Ctx is
-// the snapshot and is identical for every pass of an analysis, Subject is the
-// one entity this pass is about, and Result is the only thing a rule may write
-// to. A rule that mentions no Subject is a rule about the snapshot as a whole,
-// and it runs on every pass and says the same thing each time.
+// Two are bound: Ctx is the complete immutable snapshot and Result is the only
+// thing a rule may write to. Entity iteration is exposed through methods on
+// Ctx, so the GRL document itself executes only once.
 const (
-	factCtx     = "Ctx"
-	factSubject = "Subject"
-	factResult  = "Result"
+	factCtx    = "Ctx"
+	factResult = "Result"
 )
 
 // GRLRuntime executes rule documents written in GRL.
@@ -40,12 +37,8 @@ func NewGRLRuntime() *GRLRuntime {
 var _ Runtime = (*GRLRuntime)(nil)
 
 // Prepare compiles the document (or finds it already compiled) and clones one
-// knowledge base for the row to run every pass against.
-//
-// One clone per row rather than one per pass. Grule resets the working memory
-// and un-retracts every rule at the start of each ExecuteWithContext, so a
-// knowledge base is reusable across passes; what it is not is safe to share
-// between two concurrent analyses, which is what the clone is for.
+// knowledge base for its single execution. A clone cannot be shared between
+// concurrent analyses because Grule's working memory is mutable.
 func (r *GRLRuntime) Prepare(rule analysis.RuleDefinition) (Session, error) {
 	c, err := r.cache.get(rule)
 	if err != nil {
@@ -71,7 +64,7 @@ type grlSession struct {
 
 var _ Session = (*grlSession)(nil)
 
-// Run executes the document once, for one subject.
+// Run executes the document once over the complete snapshot.
 //
 // Grule fires exactly one rule per cycle and then re-evaluates every remaining
 // rule, so a rule whose "then" does not falsify its own "when" would be
@@ -81,29 +74,14 @@ var _ Session = (*grlSession)(nil)
 // Retraction is used rather than DataContext.Complete(): completing ends the
 // whole run at the first assertion, and an rca_rule row is a scenario document
 // whose later rules must still get their turn.
-//
-// Retraction is also per pass, not per row, and that is what makes fanning out
-// work at all: the same rule must be free to fire again for the next instance.
-// Grule clears it on entry here, so nothing needs to be undone between passes.
 func (s *grlSession) Run(
 	ctx context.Context,
 	facts *Facts,
-	subject *SubjectFacts,
 	out *Result,
 ) error {
-	if subject == nil {
-		// A nil binding would make Subject.Path() a reflection panic inside
-		// Grule, reported as a failed evaluation — a rule failing for a reason
-		// that has nothing to do with the rule.
-		subject = noSubject
-	}
-
 	dctx := ast.NewDataContext()
 	if err := dctx.Add(factCtx, facts); err != nil {
 		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factCtx, err)
-	}
-	if err := dctx.Add(factSubject, subject); err != nil {
-		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factSubject, err)
 	}
 	if err := dctx.Add(factResult, out); err != nil {
 		return fmt.Errorf("rca_rule %s: bind %s: %w", s.rule.ID, factResult, err)
@@ -117,7 +95,16 @@ func (s *grlSession) Run(
 			s.kb.RetractRule(entry.RuleName)
 		}
 	}
-	defer func() { out.retract = nil }()
+	out.currentRule = func() string {
+		if entry := dctx.GetRuleEntry(); entry != nil {
+			return entry.RuleName
+		}
+		return ""
+	}
+	defer func() {
+		out.retract = nil
+		out.currentRule = nil
+	}()
 
 	gengine := engine.NewGruleEngine()
 

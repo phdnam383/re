@@ -17,10 +17,10 @@ func invalidf(format string, args ...any) error {
 
 // Validate reports whether the request can be analysed at all.
 //
-// It checks identity and nothing else. request_id and incident are what a
-// response is correlated by; an alert's id and source_path are what every
-// downstream stage addresses things with — a profile selector matches on the
-// alert, and the builder fetches the topology under source_path.
+// It checks identity and nothing else. request_id is what a response is
+// correlated by; an alert's id and source_path are what every downstream
+// stage addresses things with — a profile selector matches on the alert, and
+// the builder fetches the topology under source_path.
 //
 // Everything else is deliberately optional. alert_type, probable_cause,
 // severity, state and additional_information are all inputs to selector
@@ -36,18 +36,19 @@ func (in ContextInput) Validate() error {
 	if in.RequestID == "" {
 		return invalidf("request_id is empty")
 	}
-	if in.Incident == "" {
-		return invalidf("incident is empty")
-	}
 	if len(in.Alerts) == 0 {
-		return invalidf("alerts is empty")
+		return invalidf("alert is required")
 	}
 	for i, a := range in.Alerts {
+		field := "alert"
+		if len(in.Alerts) > 1 {
+			field = fmt.Sprintf("alerts[%d]", i)
+		}
 		if a.ID == "" {
-			return invalidf("alerts[%d].id is empty", i)
+			return invalidf("%s.id is empty", field)
 		}
 		if a.SourcePath == "" {
-			return invalidf("alerts[%d].source_path is empty", i)
+			return invalidf("%s.source_path is empty", field)
 		}
 	}
 	return nil

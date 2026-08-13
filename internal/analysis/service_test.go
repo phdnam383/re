@@ -84,29 +84,24 @@ func TestValidationRejectsIncompleteRequests(t *testing.T) {
 			wantErr: "request_id",
 		},
 		{
-			name:    "missing incident",
-			mutate:  func(in *ContextInput) { in.Incident = "" },
-			wantErr: "incident",
-		},
-		{
 			name:    "no alerts",
 			mutate:  func(in *ContextInput) { in.Alerts = nil },
-			wantErr: "alerts",
+			wantErr: "alert",
 		},
 		{
 			name:    "empty alert list",
 			mutate:  func(in *ContextInput) { in.Alerts = []Alert{} },
-			wantErr: "alerts",
+			wantErr: "alert",
 		},
 		{
 			name:    "alert without id",
 			mutate:  func(in *ContextInput) { in.Alerts[0].ID = "" },
-			wantErr: "alerts[0].id",
+			wantErr: "alert.id",
 		},
 		{
 			name:    "alert without source path",
 			mutate:  func(in *ContextInput) { in.Alerts[0].SourcePath = "" },
-			wantErr: "alerts[0].source_path",
+			wantErr: "alert.source_path",
 		},
 		{
 			// A nil element in a protobuf repeated field maps to a zero alert.
@@ -128,7 +123,7 @@ func TestValidationRejectsIncompleteRequests(t *testing.T) {
 			in := validInput()
 			tc.mutate(&in)
 
-			_, err := s.AnalyzeIncident(context.Background(), in)
+			_, err := s.AnalyzeAlert(context.Background(), in)
 			if !errors.Is(err, ErrInvalidRequest) {
 				t.Fatalf("error = %v, want ErrInvalidRequest", err)
 			}
@@ -158,8 +153,8 @@ func TestValidationAcceptsOptionalAlertFields(t *testing.T) {
 		Alerts:    []Alert{{ID: "alert-1", SourcePath: "ims.a"}},
 	}
 
-	if _, err := s.AnalyzeIncident(context.Background(), in); err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+	if _, err := s.AnalyzeAlert(context.Background(), in); err != nil {
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 }
 
@@ -172,7 +167,7 @@ func TestValidationDoesNotNormaliseInput(t *testing.T) {
 	in := validInput()
 	in.Alerts[0].ProbableCause = "  Link_To_Peer_SIPGW_Down  "
 
-	if _, err := s.AnalyzeIncident(context.Background(), in); err != nil {
+	if _, err := s.AnalyzeAlert(context.Background(), in); err != nil {
 		t.Fatal(err)
 	}
 	if got := builder.gotInput.Alerts[0].ProbableCause; got != "  Link_To_Peer_SIPGW_Down  " {
@@ -191,9 +186,9 @@ func TestAnalyzeRunsBothStagesOnceInOrder(t *testing.T) {
 	s := newTestService(t, builder, analyzer)
 
 	in := validInput()
-	got, err := s.AnalyzeIncident(context.Background(), in)
+	got, err := s.AnalyzeAlert(context.Background(), in)
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 
 	if builder.calls != 1 {
@@ -225,7 +220,7 @@ func TestBuildFailureSkipsRCA(t *testing.T) {
 	analyzer := &recordingAnalyzer{}
 	s := newTestService(t, builder, analyzer)
 
-	_, err := s.AnalyzeIncident(context.Background(), validInput())
+	_, err := s.AnalyzeAlert(context.Background(), validInput())
 	if !errors.Is(err, buildErr) {
 		t.Fatalf("error = %v, want the build failure", err)
 	}
@@ -241,7 +236,7 @@ func TestRCAFailureProducesNoResult(t *testing.T) {
 		&recordingAnalyzer{err: rcaErr, result: RCAResult{Status: RCAStatusFailed}},
 	)
 
-	got, err := s.AnalyzeIncident(context.Background(), validInput())
+	got, err := s.AnalyzeAlert(context.Background(), validInput())
 	if !errors.Is(err, rcaErr) {
 		t.Fatalf("error = %v, want the rca failure", err)
 	}
@@ -259,7 +254,7 @@ func TestCancellationIsCheckedBeforeAnyStage(t *testing.T) {
 	builder := &recordingBuilder{}
 	s := newTestService(t, builder, &recordingAnalyzer{})
 
-	_, err := s.AnalyzeIncident(ctx, validInput())
+	_, err := s.AnalyzeAlert(ctx, validInput())
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
@@ -280,7 +275,7 @@ func TestCancellationFromAStageIsPropagated(t *testing.T) {
 	} {
 		t.Run("build "+tc.name, func(t *testing.T) {
 			s := newTestService(t, &recordingBuilder{err: tc.err}, &recordingAnalyzer{})
-			_, err := s.AnalyzeIncident(context.Background(), validInput())
+			_, err := s.AnalyzeAlert(context.Background(), validInput())
 			if !errors.Is(err, tc.err) {
 				t.Errorf("error = %v, want %v", err, tc.err)
 			}
@@ -290,7 +285,7 @@ func TestCancellationFromAStageIsPropagated(t *testing.T) {
 				&recordingBuilder{snapshot: completeSnapshot()},
 				&recordingAnalyzer{err: tc.err},
 			)
-			_, err := s.AnalyzeIncident(context.Background(), validInput())
+			_, err := s.AnalyzeAlert(context.Background(), validInput())
 			if !errors.Is(err, tc.err) {
 				t.Errorf("error = %v, want %v", err, tc.err)
 			}
@@ -314,13 +309,13 @@ func TestPartialSnapshotReachesRCAAndCarriesItsGaps(t *testing.T) {
 	}
 	analyzer := &recordingAnalyzer{result: RCAResult{
 		Status:     RCAStatusPartial,
-		RootCauses: []RootCause{{ID: "rc-1", Category: "C", Summary: "s", Entity: "ims.a", Role: RolePrimary, Confidence: 0.5}},
+		RootCauses: []RootCause{{Category: "C", Summary: "s", Role: RolePrimary}},
 	}}
 	s := newTestService(t, &recordingBuilder{snapshot: snapshot}, analyzer)
 
-	got, err := s.AnalyzeIncident(context.Background(), validInput())
+	got, err := s.AnalyzeAlert(context.Background(), validInput())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 
 	if analyzer.gotSnapshot.Status != StatusPartial {
@@ -349,9 +344,9 @@ func TestMissingContextComesOnlyFromTheSnapshot(t *testing.T) {
 	}}
 	s := newTestService(t, &recordingBuilder{snapshot: completeSnapshot()}, analyzer)
 
-	got, err := s.AnalyzeIncident(context.Background(), validInput())
+	got, err := s.AnalyzeAlert(context.Background(), validInput())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 	if len(got.MissingContext) != 0 {
 		t.Errorf("missing context = %+v, want none", got.MissingContext)
@@ -361,9 +356,9 @@ func TestMissingContextComesOnlyFromTheSnapshot(t *testing.T) {
 func TestNoConclusionIsASuccessfulResult(t *testing.T) {
 	s := newTestService(t, &recordingBuilder{snapshot: completeSnapshot()}, &recordingAnalyzer{result: noConclusionResult()})
 
-	got, err := s.AnalyzeIncident(context.Background(), validInput())
+	got, err := s.AnalyzeAlert(context.Background(), validInput())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 	if got.OverallStatus != RCAStatusNoConclusion {
 		t.Errorf("overall = %q, want NO_CONCLUSION", got.OverallStatus)
@@ -382,16 +377,20 @@ func TestResultDoesNotAliasTheStageOutputs(t *testing.T) {
 
 	s := newTestService(t, &recordingBuilder{snapshot: snapshot}, &recordingAnalyzer{result: rca})
 
-	got, err := s.AnalyzeIncident(context.Background(), validInput())
+	got, err := s.AnalyzeAlert(context.Background(), validInput())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got.RootCauses[0].ID = "mutated"
+	got.RootCauses[0].Category = "mutated"
+	got.RootCauses[0].Components[0].Entity = "mutated"
 	got.MissingContext[0].Entity = "mutated"
 
-	if rca.RootCauses[0].ID == "mutated" {
+	if rca.RootCauses[0].Category == "mutated" {
 		t.Error("mutating the result reached the RCA output")
+	}
+	if rca.RootCauses[0].Components[0].Entity == "mutated" {
+		t.Error("mutating a result component reached the RCA output")
 	}
 	if snapshot.MissingContext[0].Entity == "mutated" {
 		t.Error("mutating the result reached the snapshot")
@@ -450,7 +449,7 @@ func TestStatusMatrix(t *testing.T) {
 				&recordingAnalyzer{result: RCAResult{Status: tc.rca}},
 			)
 
-			got, err := s.AnalyzeIncident(context.Background(), validInput())
+			got, err := s.AnalyzeAlert(context.Background(), validInput())
 
 			if tc.wantInternal {
 				if !errors.Is(err, ErrInconsistentStatus) {
@@ -463,7 +462,7 @@ func TestStatusMatrix(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Fatalf("AnalyzeIncident: %v", err)
+				t.Fatalf("AnalyzeAlert: %v", err)
 			}
 			if got.OverallStatus != tc.wantOverall {
 				t.Errorf("overall = %q, want %q", got.OverallStatus, tc.wantOverall)
@@ -488,8 +487,8 @@ func completeResult() RCAResult {
 	return RCAResult{
 		Status: RCAStatusComplete,
 		RootCauses: []RootCause{{
-			ID: "rc-1", Category: "C", Summary: "s", Entity: "ims.a",
-			Role: RolePrimary, Confidence: 0.5,
+			Category: "C", Summary: "s", Role: RolePrimary,
+			Components: []Component{{Entity: "ims.a"}},
 		}},
 	}
 }

@@ -85,21 +85,22 @@ func (v *view) alertsUnder(entity string) []analysis.Alert {
 	return out
 }
 
-// linksBetween returns every link whose source is an instance of srcVDU and
-// whose destination is an instance of dstVDU.
+// linksBetween returns every link whose source matches srcPath and whose
+// destination is an instance of dstVDU. srcPath may identify either a VDU
+// (matching all of its instances) or one exact VNFC.
 //
 // The snapshot only carries the links a context profile asked for, so this is
 // "every link we were given", not "every link that exists". A profile naming
 // one instance pair therefore makes the quantified link facts answer about that
 // one pair — which is honest, and is why the profile has to name VDU pairs for
 // them to mean what they say.
-func (v *view) linksBetween(srcVDU, dstVDU string) []analysis.Link {
-	if srcVDU == "" || dstVDU == "" {
+func (v *view) linksBetween(srcPath, dstVDU string) []analysis.Link {
+	if srcPath == "" || dstVDU == "" {
 		return nil
 	}
 	var out []analysis.Link
 	for _, l := range v.snap.Links {
-		if isUnder(l.SrcPath, srcVDU) && isUnder(l.DstPath, dstVDU) {
+		if isSameOrUnder(l.SrcPath, srcPath) && isUnder(l.DstPath, dstVDU) {
 			out = append(out, l)
 		}
 	}
@@ -123,15 +124,20 @@ func (v *view) linksTo(srcVDU, dstPath string) []analysis.Link {
 // isUnder reports whether path is a proper descendant of ancestor in the
 // managed-object tree.
 //
-// Proper, unlike alertsUnder: an entity is not under itself. That is what stops
-// a rule scoped to the instances of a VDU from also firing on the pass where
-// the VDU itself is the subject, which would assert one root cause id against
-// two different entities and fail the row.
+// Proper, unlike alertsUnder: an entity is not under itself. A query for the
+// descendants of a VDU must return its instances, never the VDU itself.
 //
 // The trailing dot is required. Without it "ims.vdu_sb" is a prefix of
 // "ims.vdu_sb_logic" and a rule about one VDU would silently take in another.
 func isUnder(path, ancestor string) bool {
 	return strings.HasPrefix(path, ancestor+".")
+}
+
+// isSameOrUnder lets a selector identify either one exact entity or a subtree
+// rooted at that entity. It is used for link sources, where a rule may pass a
+// VNFC from an alert or a VDU covering all of its VNFCs.
+func isSameOrUnder(path, root string) bool {
+	return path == root || isUnder(path, root)
 }
 
 // readyReplicas counts the VNFCs under a VDU that are RUNNING.

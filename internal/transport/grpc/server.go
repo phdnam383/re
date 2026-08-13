@@ -18,12 +18,12 @@ import (
 // is also what lets every test in this package drive the server without a
 // database.
 type Analyzer interface {
-	AnalyzeIncident(context.Context, analysis.ContextInput) (analysis.AnalysisResult, error)
+	AnalyzeAlert(context.Context, analysis.ContextInput) (analysis.AnalysisResult, error)
 }
 
 // Server adapts the Analysis Service to the generated service interface.
 type Server struct {
-	mdafv1.UnimplementedIncidentAnalysisEngineServer
+	mdafv1.UnimplementedRuleEngineServer
 
 	analyzer Analyzer
 	log      *slog.Logger
@@ -46,19 +46,19 @@ func NewServer(analyzer Analyzer, logger *slog.Logger) (*Server, error) {
 // generated register function — the one place the protobuf package would
 // otherwise leak past this package.
 func (s *Server) Register(registrar grpc.ServiceRegistrar) {
-	mdafv1.RegisterIncidentAnalysisEngineServer(registrar, s)
+	mdafv1.RegisterRuleEngineServer(registrar, s)
 }
 
-// AnalyzeIncident maps the request, runs the analysis and maps the response.
+// AnalyzeAlert maps the request, runs the analysis and maps the response.
 //
 // The RPC context is passed through untouched. A caller's deadline is the only
 // budget the engine honours at this level, and adding one here would cut short
 // work the caller was still waiting for.
-func (s *Server) AnalyzeIncident(
+func (s *Server) AnalyzeAlert(
 	ctx context.Context,
-	req *mdafv1.AnalyzeIncidentRequest,
-) (*mdafv1.AnalyzeIncidentResponse, error) {
-	result, err := s.analyzer.AnalyzeIncident(ctx, requestFromPB(req))
+	req *mdafv1.AnalyzeAlertRequest,
+) (*mdafv1.AnalyzeAlertResponse, error) {
+	result, err := s.analyzer.AnalyzeAlert(ctx, requestFromPB(req))
 	if err != nil {
 		s.logFailure(ctx, req, err)
 		return nil, toStatusError(err)
@@ -81,10 +81,16 @@ func (s *Server) AnalyzeIncident(
 // This is the counterpart to the deliberately vague Internal message: the
 // detail has to exist somewhere, and the server's own log is where it can be
 // read without being handed to whoever called.
-func (s *Server) logFailure(ctx context.Context, req *mdafv1.AnalyzeIncidentRequest, err error) {
-	s.log.ErrorContext(ctx, "analyze incident failed",
-		"request_id", req.GetRequestId(),
-		"incident", req.GetIncident(),
+func (s *Server) logFailure(ctx context.Context, req *mdafv1.AnalyzeAlertRequest, err error) {
+	s.log.ErrorContext(ctx, "analyze alert failed",
+		"request_id", requestID(req),
 		"error", err,
 	)
+}
+
+func requestID(req *mdafv1.AnalyzeAlertRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetRequestId()
 }

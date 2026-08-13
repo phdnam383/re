@@ -215,7 +215,7 @@ func repointConfigurationURL(t *testing.T, db *sql.DB, url string) {
 // --- engine harness ------------------------------------------------------
 
 // startEngine wires the shipping composition root over an in-memory listener.
-func startEngine(t *testing.T, db *sql.DB) mdafv1.IncidentAnalysisEngineClient {
+func startEngine(t *testing.T, db *sql.DB) mdafv1.RuleEngineClient {
 	t.Helper()
 
 	cfg := config{
@@ -253,77 +253,55 @@ func startEngine(t *testing.T, db *sql.DB) mdafv1.IncidentAnalysisEngineClient {
 		}
 	})
 
-	return mdafv1.NewIncidentAnalysisEngineClient(conn)
+	return mdafv1.NewRuleEngineClient(conn)
 }
 
 // --- requests ------------------------------------------------------------
 
-// The alerts mirror db/seed_test.sql. They are written out rather than read
-// back from the alert table because the engine takes them from the caller: the
-// request is the input, and the database is only consulted for context.
-func sipgwRequest() *mdafv1.AnalyzeIncidentRequest {
-	return &mdafv1.AnalyzeIncidentRequest{
+// The alerts mirror db/seed_test.sql. Each request supplies one directly
+// rather than reading it back from the alert table: the request is the input,
+// and the database is only consulted for context.
+func sipgwRequest() *mdafv1.AnalyzeAlertRequest {
+	return &mdafv1.AnalyzeAlertRequest{
 		RequestId: "req-sipgw-0001",
-		Incident:  "inc-sipgw-0001",
-		Alerts: []*mdafv1.Alert{
-			alert("aaaaaaaa-1111-4111-8111-111111111111", "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-				"LINK_TO_PEER_SIPGW_DOWN", "2026-06-18T00:00:00Z",
-				map[string]any{
-					"dst_path":    "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-					"remote_ip":   "10.55.70.37",
-					"remote_port": 5060,
-					"transport":   "TCP",
-				}),
-			alert("aaaaaaaa-2222-4222-8222-222222222222", "ims.vdu_sb_sip_core.vnfc_sb_sip_core_2",
-				"LINK_TO_PEER_SIPGW_DOWN", "2026-06-18T00:00:01Z",
-				map[string]any{
-					"dst_path":    "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-					"remote_ip":   "10.55.70.37",
-					"remote_port": 5060,
-					"transport":   "TCP",
-				}),
-		},
+		Alert: alert("aaaaaaaa-1111-4111-8111-111111111111", "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+			"LINK_TO_PEER_SIPGW_DOWN", "2026-06-18T00:00:00Z",
+			map[string]any{
+				"dst_path":    "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+				"remote_ip":   "10.55.70.37",
+				"remote_port": 5060,
+				"transport":   "TCP",
+			}),
 	}
 }
 
-func diagwRequest() *mdafv1.AnalyzeIncidentRequest {
+func diagwRequest() *mdafv1.AnalyzeAlertRequest {
 	info := map[string]any{
 		"dst_path":             "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
 		"application_protocol": "DIAMETER",
 		"transport":            "SCTP",
 	}
-	return &mdafv1.AnalyzeIncidentRequest{
+	return &mdafv1.AnalyzeAlertRequest{
 		RequestId: "req-diagw-0001",
-		Incident:  "inc-diagw-0001",
-		Alerts: []*mdafv1.Alert{
-			alert("eeeeeeee-1111-4111-8111-111111111111", "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
-				"LINK_TO_PEER_DIAGW_DOWN", "2026-06-18T01:00:00Z", info),
-			alert("eeeeeeee-2222-4222-8222-222222222222", "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_2",
-				"LINK_TO_PEER_DIAGW_DOWN", "2026-06-18T01:00:01Z", info),
-		},
+		Alert: alert("eeeeeeee-1111-4111-8111-111111111111", "ims.vdu_sb_diameter_core.vnfc_sb_diameter_core_1",
+			"LINK_TO_PEER_DIAGW_DOWN", "2026-06-18T01:00:00Z", info),
 	}
 }
 
-func tpsRequest() *mdafv1.AnalyzeIncidentRequest {
-	req := &mdafv1.AnalyzeIncidentRequest{
-		RequestId: "req-tps-0001",
-		Incident:  "inc-tps-0001",
-	}
-	for i, observed := range []float64{93.5, 94.1, 95.0} {
-		a := alert(
-			fmt.Sprintf("cccccccc-3333-4333-8333-33333333333%d", i+3),
-			"ims.vdu_sb_logic.vnfc_sb_logic_1",
-			"THRESHOLD_CROSSING",
-			fmt.Sprintf("2026-06-18T10:00:0%dZ", i*2),
-			map[string]any{
-				"metric":          "overload_ram",
-				"observed_value":  observed,
-				"threshold_value": 85,
-			},
-		)
-		a.AlertType = "QUALITY_OF_SERVICE_ALERT"
-		req.Alerts = append(req.Alerts, a)
-	}
+func tpsRequest() *mdafv1.AnalyzeAlertRequest {
+	a := alert(
+		"cccccccc-3333-4333-8333-333333333333",
+		"ims.vdu_sb_logic.vnfc_sb_logic_1",
+		"THRESHOLD_CROSSING",
+		"2026-06-18T10:00:00Z",
+		map[string]any{
+			"metric":          "overload_ram",
+			"observed_value":  93.5,
+			"threshold_value": 85,
+		},
+	)
+	a.AlertType = "QUALITY_OF_SERVICE_ALERT"
+	req := &mdafv1.AnalyzeAlertRequest{RequestId: "req-tps-0001", Alert: a}
 	return req
 }
 
@@ -352,7 +330,7 @@ func alert(id, source, cause, createdAt string, info map[string]any) *mdafv1.Ale
 func TestE2EGoldenScenarios(t *testing.T) {
 	tests := []struct {
 		name string
-		req  func() *mdafv1.AnalyzeIncidentRequest
+		req  func() *mdafv1.AnalyzeAlertRequest
 	}{
 		{name: "sipgw_link_down", req: sipgwRequest},
 		{name: "diagw_link_down", req: diagwRequest},
@@ -367,9 +345,9 @@ func TestE2EGoldenScenarios(t *testing.T) {
 			startConfigurationAPI(t, db, 5)
 			client := startEngine(t, db)
 
-			got, err := client.AnalyzeIncident(context.Background(), tc.req())
+			got, err := client.AnalyzeAlert(context.Background(), tc.req())
 			if err != nil {
-				t.Fatalf("AnalyzeIncident: %v", err)
+				t.Fatalf("AnalyzeAlert: %v", err)
 			}
 			assertGoldenResponse(t, tc.name, got)
 		})
@@ -380,9 +358,9 @@ func TestE2ESIPGWNamesEveryTerminatedComponent(t *testing.T) {
 	db := testDB(t)
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), sipgwRequest())
+	got, err := client.AnalyzeAlert(context.Background(), sipgwRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 
 	if got.GetStatus().GetOverall() != analysis.RCAStatusComplete {
@@ -392,9 +370,9 @@ func TestE2ESIPGWNamesEveryTerminatedComponent(t *testing.T) {
 	// rather than the rules' salience: the document fans out over the instances
 	// the topology actually has, so the instances decide the order.
 	want := []string{
-		"rc-sipgw-loadbalancer-down-ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-		"rc-sipgw-logic-down-ims.vdu_cs_logic.vnfc_cs_logic_1",
-		"rc-sipgw-icscf-down-ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+		"I-CSCF load balancer is unavailable",
+		"I-CSCF SIP component is unavailable",
+		"SIPGW logic component is unavailable",
 	}
 	if got := rootCauseIDs(got); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("root causes = %v, want %v", got, want)
@@ -409,45 +387,46 @@ func TestE2ETPSReadsTheEffectiveConfiguration(t *testing.T) {
 	startConfigurationAPI(t, db, 5)
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), tpsRequest())
+	got, err := client.AnalyzeAlert(context.Background(), tpsRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
 
 	if got.GetStatus().GetOverall() != analysis.RCAStatusComplete {
 		t.Errorf("overall = %q, want COMPLETE", got.GetStatus().GetOverall())
 	}
-	// The replica finding is about the VDU, so its rule names no subject and
-	// keeps a fixed id. The configuration finding is about one instance and
-	// carries that instance's path.
+	// One finding restarts every terminated VNFC; the other reduces the log
+	// configuration on the alerting instance.
 	want := []string{
-		"rc-tps-replica-degradation",
-		"rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
+		"One or more sb_logic VNFCs are unavailable while TPS load is high",
+		"number_of_log_file is too high and increases RAM consumption",
 	}
 	if ids := rootCauseIDs(got); strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Fatalf("root causes = %v, want %v", ids, want)
 	}
 
-	// The replica action carries a number through structpb, not a string.
-	restore := got.GetRca().GetRootCauses()[0].GetActions()[0]
-	if restore.GetValue().GetNumberValue() != 3 {
-		t.Errorf("restore value = %v, want 3", restore.GetValue())
+	setConfig := got.GetRca().GetRootCauses()[1].GetComponents()[0].GetAction()
+	if setConfig.GetMoInstance() != "ims.vdu_sb_logic.vnfc_sb_logic_1_num_of_log_file" ||
+		setConfig.GetOp() != analysis.OpReplace {
+		t.Errorf("set-config action = %v", setConfig)
+	}
+	if setConfig.GetValue().GetNumberValue() != 3 {
+		t.Errorf("set-config value = %v, want 3", setConfig.GetValue())
 	}
 }
 
 func TestE2ETPSBelowThresholdBlamesOnlyTheReplicas(t *testing.T) {
-	// The configuration rule fires at >= 3. Answering 1 leaves the replica
-	// degradation standing on its own, which proves the value is really being
-	// read rather than assumed.
+	// The configuration rule fires at >= 3. Answering 1 leaves only the VNFC
+	// restart finding, proving the effective value is really read.
 	db := testDB(t)
 	startConfigurationAPI(t, db, 1)
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), tpsRequest())
+	got, err := client.AnalyzeAlert(context.Background(), tpsRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident: %v", err)
+		t.Fatalf("AnalyzeAlert: %v", err)
 	}
-	want := []string{"rc-tps-replica-degradation"}
+	want := []string{"One or more sb_logic VNFCs are unavailable while TPS load is high"}
 	if ids := rootCauseIDs(got); strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Errorf("root causes = %v, want %v", ids, want)
 	}
@@ -462,9 +441,9 @@ func TestE2EPartialContextWhenTheConfigurationAPIIsDown(t *testing.T) {
 	repointConfigurationURL(t, db, "http://127.0.0.1:1/v1/num_of_log_file")
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), tpsRequest())
+	got, err := client.AnalyzeAlert(context.Background(), tpsRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident = %v, want a successful PARTIAL response", err)
+		t.Fatalf("AnalyzeAlert = %v, want a successful PARTIAL response", err)
 	}
 
 	if got.GetStatus().GetContext() != analysis.StatusPartial {
@@ -475,8 +454,8 @@ func TestE2EPartialContextWhenTheConfigurationAPIIsDown(t *testing.T) {
 	}
 	// The topology-based rule still concluded. Withholding it because one HTTP
 	// call failed would drop the answer precisely when it is needed.
-	if ids := rootCauseIDs(got); len(ids) != 1 || ids[0] != "rc-tps-replica-degradation" {
-		t.Errorf("root causes = %v, want only the replica degradation", ids)
+	if ids := rootCauseIDs(got); len(ids) != 1 || ids[0] != "One or more sb_logic VNFCs are unavailable while TPS load is high" {
+		t.Errorf("root causes = %v, want only the VNFC restart finding", ids)
 	}
 
 	missing := got.GetMeta().GetMissingContext()
@@ -498,10 +477,9 @@ func TestE2ENoMatchingProfileIsFailedPrecondition(t *testing.T) {
 	client := startEngine(t, db)
 
 	req := sipgwRequest()
-	req.Alerts[0].ProbableCause = "SOMETHING_NO_PROFILE_MATCHES"
-	req.Alerts = req.Alerts[:1]
+	req.Alert.ProbableCause = "SOMETHING_NO_PROFILE_MATCHES"
 
-	_, err := client.AnalyzeIncident(context.Background(), req)
+	_, err := client.AnalyzeAlert(context.Background(), req)
 	if status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("code = %s, want FailedPrecondition (err=%v)", status.Code(err), err)
 	}
@@ -519,7 +497,7 @@ func TestE2ENoEnabledRuleIsFailedPrecondition(t *testing.T) {
 	}
 	client := startEngine(t, db)
 
-	_, err := client.AnalyzeIncident(context.Background(), sipgwRequest())
+	_, err := client.AnalyzeAlert(context.Background(), sipgwRequest())
 	if status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("code = %s, want FailedPrecondition (err=%v)", status.Code(err), err)
 	}
@@ -538,9 +516,9 @@ func TestE2ENoConclusionIsASuccessfulResponse(t *testing.T) {
 	}
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), sipgwRequest())
+	got, err := client.AnalyzeAlert(context.Background(), sipgwRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident = %v, want a successful response", err)
+		t.Fatalf("AnalyzeAlert = %v, want a successful response", err)
 	}
 	if got.GetStatus().GetOverall() != analysis.RCAStatusNoConclusion {
 		t.Errorf("overall = %q, want NO_CONCLUSION", got.GetStatus().GetOverall())
@@ -564,9 +542,9 @@ func TestE2EOneBrokenRuleRowLeavesTheOthersStanding(t *testing.T) {
 	}
 	client := startEngine(t, db)
 
-	got, err := client.AnalyzeIncident(context.Background(), sipgwRequest())
+	got, err := client.AnalyzeAlert(context.Background(), sipgwRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident = %v, want a successful PARTIAL response", err)
+		t.Fatalf("AnalyzeAlert = %v, want a successful PARTIAL response", err)
 	}
 	if got.GetStatus().GetRca() != analysis.RCAStatusPartial {
 		t.Errorf("rca = %q, want PARTIAL", got.GetStatus().GetRca())
@@ -592,7 +570,7 @@ func TestE2EEveryRuleRowBrokenIsInternal(t *testing.T) {
 	}
 	client := startEngine(t, db)
 
-	_, err := client.AnalyzeIncident(context.Background(), sipgwRequest())
+	_, err := client.AnalyzeAlert(context.Background(), sipgwRequest())
 	if status.Code(err) != codes.Internal {
 		t.Fatalf("code = %s, want Internal (err=%v)", status.Code(err), err)
 	}
@@ -609,7 +587,7 @@ func TestE2ECallerDeadlineIsHonoured(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 
-	_, err := client.AnalyzeIncident(ctx, sipgwRequest())
+	_, err := client.AnalyzeAlert(ctx, sipgwRequest())
 	if status.Code(err) != codes.DeadlineExceeded {
 		t.Fatalf("code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
 	}
@@ -640,9 +618,9 @@ func TestE2ESlowConfigurationAPIDegradesRatherThanHangs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	got, err := client.AnalyzeIncident(ctx, tpsRequest())
+	got, err := client.AnalyzeAlert(ctx, tpsRequest())
 	if err != nil {
-		t.Fatalf("AnalyzeIncident = %v, want a PARTIAL response", err)
+		t.Fatalf("AnalyzeAlert = %v, want a PARTIAL response", err)
 	}
 	if got.GetStatus().GetContext() != analysis.StatusPartial {
 		t.Errorf("context = %q, want PARTIAL", got.GetStatus().GetContext())
@@ -656,7 +634,7 @@ func TestE2ESlowConfigurationAPIDegradesRatherThanHangs(t *testing.T) {
 // --- helpers -------------------------------------------------------------
 
 // startEngineWithConfig is startEngine with the timeouts under test.
-func startEngineWithConfig(t *testing.T, db *sql.DB, cfg config) mdafv1.IncidentAnalysisEngineClient {
+func startEngineWithConfig(t *testing.T, db *sql.DB, cfg config) mdafv1.RuleEngineClient {
 	t.Helper()
 
 	server, err := buildServer(cfg, db, testLogger())
@@ -684,14 +662,14 @@ func startEngineWithConfig(t *testing.T, db *sql.DB, cfg config) mdafv1.Incident
 		<-served
 	})
 
-	return mdafv1.NewIncidentAnalysisEngineClient(conn)
+	return mdafv1.NewRuleEngineClient(conn)
 }
 
-func rootCauseIDs(resp *mdafv1.AnalyzeIncidentResponse) []string {
+func rootCauseIDs(resp *mdafv1.AnalyzeAlertResponse) []string {
 	causes := resp.GetRca().GetRootCauses()
 	out := make([]string, 0, len(causes))
 	for _, c := range causes {
-		out = append(out, c.GetId())
+		out = append(out, c.GetSummary())
 	}
 	return out
 }
@@ -702,7 +680,7 @@ func rootCauseIDs(resp *mdafv1.AnalyzeIncidentResponse) []string {
 // re-encoded through encoding/json: that fixes both the spacing and the key
 // order, which is what makes a byte comparison meaningful. The response itself
 // carries no timestamp and no latency, so there is nothing else to normalise.
-func assertGoldenResponse(t *testing.T, scenario string, resp *mdafv1.AnalyzeIncidentResponse) {
+func assertGoldenResponse(t *testing.T, scenario string, resp *mdafv1.AnalyzeAlertResponse) {
 	t.Helper()
 
 	raw, err := protojson.Marshal(resp)

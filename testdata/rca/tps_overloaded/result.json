@@ -2,34 +2,41 @@
   "status": "COMPLETE",
   "root_causes": [
     {
-      "id": "rc-tps-replica-degradation",
-      "category": "REPLICA_DEGRADATION",
-      "summary": "sb_logic is running fewer replicas than declared while TPS load is high",
-      "entity": "ims.vdu_sb_logic",
+      "category": "TPS_OVERLOADED",
       "role": "PRIMARY",
-      "confidence": 0.55,
-      "actions": [
+      "summary": "One or more sb_logic VNFCs are unavailable while TPS load is high",
+      "components": [
         {
-          "code": "RESTORE_REPLICAS",
-          "mo_instance": "ims.vdu_sb_logic",
-          "op": "REPLACE",
-          "value": 3
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+            "op": "REPLACE"
+          }
+        },
+        {
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_3",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_3",
+            "op": "REPLACE"
+          }
         }
       ]
     },
     {
-      "id": "rc-tps-high-log-file-config-ims.vdu_sb_logic.vnfc_sb_logic_1",
       "category": "HIGH_LOG_FILE_CONFIG",
-      "summary": "number_of_log_file is too high and increases RAM consumption",
-      "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
       "role": "CONTRIBUTING",
-      "confidence": 0.3,
-      "actions": [
+      "summary": "number_of_log_file is too high and increases RAM consumption",
+      "components": [
         {
-          "code": "SET_CONFIG",
-          "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1",
-          "op": "REPLACE",
-          "value": 3
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+          "action": {
+            "code": "SET_CONFIG",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1_num_of_log_file",
+            "op": "REPLACE",
+            "value": 3
+          }
         }
       ]
     }
@@ -40,21 +47,21 @@
       "rule_name": "link_to_diagw_down",
       "status": "COMPLETE",
       "root_cause_count": 0,
-      "passes": 5
+      "passes": 1
     },
     {
       "rule_id": "rule-link_to_sipgw_down",
       "rule_name": "link_to_sipgw_down",
       "status": "COMPLETE",
       "root_cause_count": 0,
-      "passes": 5
+      "passes": 1
     },
     {
       "rule_id": "rule-tps_overloaded",
       "rule_name": "tps_overloaded",
       "status": "COMPLETE",
       "root_cause_count": 2,
-      "passes": 5
+      "passes": 1
     }
   ]
 }

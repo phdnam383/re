@@ -115,10 +115,19 @@ func TestAlertsHasCause(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := f.Alerts.HasCause(tc.cause); got != tc.want {
+			if got := f.Alert.HasCause(tc.cause); got != tc.want {
 				t.Errorf("HasCause(%q) = %v, want %v", tc.cause, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestAlertSourcePath(t *testing.T) {
+	if got := testFacts(t).Alert.SourcePath(); got != "ims.vdu_sb_logic.vnfc_sb_logic_1" {
+		t.Errorf("SourcePath() = %q", got)
+	}
+	if got := NewFacts(analysis.ContextSnapshot{}).Alert.SourcePath(); got != "" {
+		t.Errorf("empty SourcePath() = %q", got)
 	}
 }
 
@@ -152,10 +161,10 @@ func TestAlertsOverloadScoping(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := f.Alerts.OverloadCount(tc.entity); got != tc.want {
+			if got := f.Alert.OverloadCount(tc.entity); got != tc.want {
 				t.Errorf("OverloadCount(%q) = %d, want %d", tc.entity, got, tc.want)
 			}
-			if got, want := f.Alerts.HasOverload(tc.entity), tc.want > 0; got != want {
+			if got, want := f.Alert.HasOverload(tc.entity), tc.want > 0; got != want {
 				t.Errorf("HasOverload(%q) = %v, want %v", tc.entity, got, want)
 			}
 		})
@@ -174,7 +183,7 @@ func TestAlertsOverloadIgnoresNonStringMetric(t *testing.T) {
 		AdditionalInformation: map[string]any{"metric": 42},
 	}}
 
-	if got := NewFacts(snap).Alerts.OverloadCount("ims.vdu_sb_logic"); got != 0 {
+	if got := NewFacts(snap).Alert.OverloadCount("ims.vdu_sb_logic"); got != 0 {
 		t.Errorf("OverloadCount = %d, want 0", got)
 	}
 }
@@ -212,13 +221,13 @@ func TestVDUReplicaFacts(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := f.VDU.ReadyReplicas(tc.path); got != tc.ready {
+			if got := f.Vdu.ReadyReplicas(tc.path); got != tc.ready {
 				t.Errorf("ReadyReplicas(%q) = %d, want %d", tc.path, got, tc.ready)
 			}
-			if got := f.VDU.DesiredReplicas(tc.path); got != tc.desired {
+			if got := f.Vdu.DesiredReplicas(tc.path); got != tc.desired {
 				t.Errorf("DesiredReplicas(%q) = %d, want %d", tc.path, got, tc.desired)
 			}
-			if got := f.VDU.IsDegraded(tc.path); got != tc.degraded {
+			if got := f.Vdu.IsDegraded(tc.path); got != tc.degraded {
 				t.Errorf("IsDegraded(%q) = %v, want %v", tc.path, got, tc.degraded)
 			}
 		})
@@ -226,7 +235,7 @@ func TestVDUReplicaFacts(t *testing.T) {
 }
 
 func TestVDUIgnoresVNFCsWithoutOwner(t *testing.T) {
-	// Containment comes from VNFC.VDUPath. A VNFC whose path sits under the
+	// Containment comes from VNFC.VduPath. A VNFC whose path sits under the
 	// VDU but whose VDUPath is empty is not counted: the snapshot is the
 	// authority on containment, and re-deriving it from the path here would be
 	// a second answer that could disagree.
@@ -237,10 +246,10 @@ func TestVDUIgnoresVNFCsWithoutOwner(t *testing.T) {
 	}
 	f := NewFacts(snap)
 
-	if got := f.VDU.ReadyReplicas("ims.vdu_a"); got != 0 {
+	if got := f.Vdu.ReadyReplicas("ims.vdu_a"); got != 0 {
 		t.Errorf("ReadyReplicas = %d, want 0", got)
 	}
-	if !f.VDU.IsDegraded("ims.vdu_a") {
+	if !f.Vdu.IsDegraded("ims.vdu_a") {
 		t.Error("IsDegraded = false, want true")
 	}
 }
@@ -269,10 +278,10 @@ func TestVNFCStatus(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := f.VNFC.Status(tc.path); got != tc.wantStatus {
+			if got := f.Vnfc.Status(tc.path); got != tc.wantStatus {
 				t.Errorf("Status(%q) = %q, want %q", tc.path, got, tc.wantStatus)
 			}
-			if got := f.VNFC.IsDown(tc.path); got != tc.wantDown {
+			if got := f.Vnfc.IsDown(tc.path); got != tc.wantDown {
 				t.Errorf("IsDown(%q) = %v, want %v", tc.path, got, tc.wantDown)
 			}
 		})
@@ -283,7 +292,7 @@ func TestVNFCTerminatedIsCaseInsensitive(t *testing.T) {
 	snap := analysis.ContextSnapshot{
 		VNFCs: []analysis.VNFC{{Path: "ims.a", Status: "terminated"}},
 	}
-	if !NewFacts(snap).VNFC.IsDown("ims.a") {
+	if !NewFacts(snap).Vnfc.IsDown("ims.a") {
 		t.Error("IsDown = false, want true for lower-case terminated")
 	}
 }
@@ -298,19 +307,38 @@ func TestVNFCParent(t *testing.T) {
 		{"another vdu", "ims.vdu_healthy.vnfc_healthy_1", "ims.vdu_healthy"},
 		{"missing vnfc", "ims.nothing.vnfc_1", ""},
 		{
-			// A VDU is not a VNFC, so it has no VNFC parent. This is what keeps
-			// a rule scoped with Parent(Subject.Path()) == vdu from also firing
-			// on the pass where that VDU is itself the subject.
+			// A VDU is not a VNFC, so it has no VNFC parent.
 			name: "a vdu path is not in the vnfc index", path: "ims.vdu_sb_logic", want: "",
 		},
 		{"empty", "", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := f.VNFC.Parent(tc.path); got != tc.want {
+			if got := f.Vnfc.Parent(tc.path); got != tc.want {
 				t.Errorf("Parent(%q) = %q, want %q", tc.path, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestVNFCDownPathsInVDU(t *testing.T) {
+	f := testFacts(t)
+	paths := f.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")
+	want := []string{"ims.vdu_sb_logic.vnfc_sb_logic_2"}
+	if len(paths) != len(want) || paths[0] != want[0] {
+		t.Fatalf("DownPathsInVDU = %v, want %v", paths, want)
+	}
+	if !f.Vnfc.HasAnyDownInVDU("ims.vdu_sb_logic") {
+		t.Error("HasAnyDownInVDU = false")
+	}
+	if f.Vnfc.HasAnyDownInVDU("ims.vdu_healthy") || len(f.Vnfc.DownPathsInVDU("ims.missing")) != 0 {
+		t.Error("healthy or missing VDU reported a down VNFC")
+	}
+
+	// The returned slice is caller-owned.
+	paths[0] = "mutated"
+	if got := f.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")[0]; got != want[0] {
+		t.Errorf("mutating DownPathsInVDU reached facts: %q", got)
 	}
 }
 
@@ -322,7 +350,7 @@ func TestVNFCParentComesFromTheSnapshotNotThePath(t *testing.T) {
 	snap := analysis.ContextSnapshot{
 		VNFCs: []analysis.VNFC{{Path: "ims.vdu_a.vnfc_1", VDUPath: "ims.vdu_elsewhere"}},
 	}
-	if got := NewFacts(snap).VNFC.Parent("ims.vdu_a.vnfc_1"); got != "ims.vdu_elsewhere" {
+	if got := NewFacts(snap).Vnfc.Parent("ims.vdu_a.vnfc_1"); got != "ims.vdu_elsewhere" {
 		t.Errorf("Parent = %q, want the recorded VDUPath", got)
 	}
 }
@@ -394,11 +422,20 @@ func TestLinkIsSeveredBetween(t *testing.T) {
 		want           bool
 	}{
 		{"every edge unusable", "ims.vdu_src", "ims.vdu_gone", true},
+		{"exact source VNFC with unusable edge", "ims.vdu_src.vnfc_src_1", "ims.vdu_gone", true},
 		{
 			// The whole reason the quantifier is "every" and not "any": one
 			// live path out of three means traffic still flows, and the more
 			// the VDUs scale out the more often "any" would be satisfied.
 			name: "one edge still up", src: "ims.vdu_src", dst: "ims.vdu_mixed", want: false,
+		},
+		{
+			name: "exact source VNFC with one live edge", src: "ims.vdu_src.vnfc_src_1", dst: "ims.vdu_mixed", want: false,
+		},
+		{
+			// The VDU has a live path through src_1, but src_2 itself has only
+			// an unusable edge. Passing a VNFC must not include its sibling.
+			name: "exact source excludes sibling VNFC", src: "ims.vdu_src.vnfc_src_2", dst: "ims.vdu_mixed", want: true,
 		},
 		{
 			// Vacuous truth is the trap. No edges means the snapshot was never
@@ -459,6 +496,7 @@ func TestLinkDownCountBetween(t *testing.T) {
 		want           int
 	}{
 		{"all unusable", "ims.vdu_src", "ims.vdu_gone", 2},
+		{"exact source VNFC", "ims.vdu_src.vnfc_src_1", "ims.vdu_gone", 1},
 		{"two of three", "ims.vdu_src", "ims.vdu_mixed", 2},
 		{"unknown is not counted", "ims.vdu_src", "ims.vdu_murky", 0},
 		{"no edges", "ims.vdu_src", "ims.vdu_absent", 0},
@@ -555,7 +593,7 @@ func TestFactsDoNotShareStateAcrossInstances(t *testing.T) {
 
 	snap.VDUs[0].Replicas = 99
 
-	if got := first.VDU.DesiredReplicas("ims.vdu_sb_logic"); got != 3 {
+	if got := first.Vdu.DesiredReplicas("ims.vdu_sb_logic"); got != 3 {
 		t.Errorf("DesiredReplicas after mutating the source slice = %d, want 3", got)
 	}
 }

@@ -1,74 +1,56 @@
 rule SIPGWLoadBalancerDown "The I-CSCF load balancer is unavailable" salience 100 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
-        Ctx.Link.IsSeveredTo("ims.vdu_sb_sip_core", Subject.Path()) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_loadbalancer_icscf" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_cs_loadbalancer_icscf"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_loadbalancer_icscf")
     then
         Result.Assert(
-            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF load balancer instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "I-CSCF load balancer is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_loadbalancer_icscf")
         );
 }
 
 rule SIPGWICSCFDown "The I-CSCF SIP component is unavailable" salience 90 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_sip_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_sip_icscf" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_sip_icscf")
     then
         Result.Assert(
-            "rc-sipgw-icscf-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF SIP component instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "I-CSCF SIP component is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-icscf-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_sip_icscf")
         );
 }
 
 rule SIPGWLogicDown "The SIPGW logic component is unavailable" salience 80 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_sip_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_logic" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_logic")
     then
         Result.Assert(
-            "rc-sipgw-logic-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "SIPGW logic component instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "SIPGW logic component is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-logic-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_logic")
         );
 }

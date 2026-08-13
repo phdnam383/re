@@ -166,76 +166,58 @@ INSERT INTO rca_rule (name, description, rule_content, salience, enabled) VALUES
 ('link_to_sipgw_down', 'RCA and actions for LINK_TO_PEER_SIPGW_DOWN', $grl$
 rule SIPGWLoadBalancerDown "The I-CSCF load balancer is unavailable" salience 100 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
-        Ctx.Link.IsSeveredTo("ims.vdu_sb_sip_core", Subject.Path()) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_loadbalancer_icscf" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_cs_loadbalancer_icscf"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_loadbalancer_icscf")
     then
         Result.Assert(
-            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF load balancer instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "I-CSCF load balancer is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-loadbalancer-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_loadbalancer_icscf")
         );
 }
 
 rule SIPGWICSCFDown "The I-CSCF SIP component is unavailable" salience 90 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_sip_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_sip_icscf" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_sip_icscf")
     then
         Result.Assert(
-            "rc-sipgw-icscf-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "I-CSCF SIP component instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "I-CSCF SIP component is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-icscf-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_sip_icscf")
         );
 }
 
 rule SIPGWLogicDown "The SIPGW logic component is unavailable" salience 80 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_sip_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_icscf"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_logic" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_logic")
     then
         Result.Assert(
-            "rc-sipgw-logic-down-" + Subject.Path(),
             "SIPGW_DOWN",
-            "SIPGW logic component instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "SIPGW logic component is unavailable"
         );
-        Result.Recommend(
-            "rc-sipgw-logic-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_logic")
         );
 }
 $grl$, 100, TRUE),
@@ -243,156 +225,121 @@ $grl$, 100, TRUE),
 ('link_to_diagw_down', 'RCA and actions for LINK_TO_PEER_DIAGW_DOWN', $grl$
 rule DIAGWLoadBalancerDown "The DIAGW load balancer is unavailable" salience 100 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
-        Ctx.Link.IsSeveredTo("ims.vdu_sb_diameter_core", Subject.Path()) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_loadbalancer_diagw" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_cs_loadbalancer_diagw"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_loadbalancer_diagw")
     then
         Result.Assert(
-            "rc-diagw-loadbalancer-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW load balancer instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.55
+            "DIAGW load balancer is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-loadbalancer-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_loadbalancer_diagw")
         );
 }
 
 rule DIAGWDiameterRouterDown "The DIAGW Diameter router is unavailable" salience 90 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_diameter_router" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_diameter_router")
     then
         Result.Assert(
-            "rc-diagw-diameter-router-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW Diameter router instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW Diameter router is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-diameter-router-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_diameter_router")
         );
 }
 
 rule DIAGWLogicDown "The DIAGW routing logic is unavailable" salience 80 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_diag_logic" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_diag_logic")
     then
         Result.Assert(
-            "rc-diagw-logic-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW routing logic instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW routing logic is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-logic-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_diag_logic")
         );
 }
 
 rule DIAGWHSSConnectorDown "The DIAGW HSS connector is unavailable" salience 70 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_hss_connector" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_hss_connector")
     then
         Result.Assert(
-            "rc-diagw-hss-connector-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW HSS connector instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW HSS connector is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-hss-connector-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_hss_connector")
         );
 }
 $grl$, 100, TRUE),
 
 ('tps_overloaded', 'RCA and actions for TPS_OVERLOADED', $grl$
-rule TPSReplicaDegradation "Replica degradation concentrates TPS load" salience 100 {
+rule TPSVNFCDown "A VNFC is unavailable while TPS load is high" salience 100 {
     when
-        Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.Alerts.OverloadCount("ims.vdu_sb_logic") > 1 &&
-        Ctx.VDU.IsDegraded("ims.vdu_sb_logic")
+        Ctx.Alert.HasCause("THRESHOLD_CROSSING") &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_logic")
     then
         Result.Assert(
-            "rc-tps-replica-degradation",
-            "REPLICA_DEGRADATION",
-            "sb_logic is running fewer replicas than declared while TPS load is high",
-            "ims.vdu_sb_logic",
+            "TPS_OVERLOADED",
             "PRIMARY",
-            0.55
+            "One or more sb_logic VNFCs are unavailable while TPS load is high"
         );
-        Result.Recommend(
-            "rc-tps-replica-degradation",
-            "RESTORE_REPLICAS",
-            "ims.vdu_sb_logic",
-            "REPLACE",
-            Ctx.VDU.DesiredReplicas("ims.vdu_sb_logic")
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")
         );
 }
 
 rule TPSHighLogFileConfiguration "High log-file count increases RAM usage" salience 90 {
     when
-        Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_sb_logic" &&
-        Ctx.Alerts.HasOverload(Subject.Path()) &&
-        Ctx.Configuration.Has(Subject.Path(), "number_of_log_file") &&
-        Ctx.Configuration.GetFloat(Subject.Path(), "number_of_log_file") >= 3.0
+        Ctx.Alert.HasCause("THRESHOLD_CROSSING") &&
+        Ctx.Configuration.Has(
+            Ctx.Alert.SourcePath(),
+            "number_of_log_file"
+        ) &&
+        Ctx.Configuration.GetFloat(
+            Ctx.Alert.SourcePath(),
+            "number_of_log_file"
+        ) >= 3.0
     then
         Result.Assert(
-            "rc-tps-high-log-file-config-" + Subject.Path(),
             "HIGH_LOG_FILE_CONFIG",
-            "number_of_log_file is too high and increases RAM consumption",
-            Subject.Path(),
             "CONTRIBUTING",
-            0.30
+            "number_of_log_file is too high and increases RAM consumption"
         );
-        Result.Recommend(
-            "rc-tps-high-log-file-config-" + Subject.Path(),
-            "SET_CONFIG",
-            Subject.Path(),
-            "REPLACE",
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_num_of_log_file",
             3
         );
 }
-$grl$, 100, TRUE)
-ON CONFLICT (name) DO UPDATE SET
+$grl$, 100, TRUE)ON CONFLICT (name) DO UPDATE SET
   description = EXCLUDED.description, rule_content = EXCLUDED.rule_content,
   salience = EXCLUDED.salience, enabled = EXCLUDED.enabled,
   updated_at = now();

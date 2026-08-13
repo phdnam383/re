@@ -80,9 +80,8 @@ const (
 // ContextInput is the validated request handed to the Context Builder and
 // retained verbatim in the snapshot it produces.
 //
-// Incident is the caller's opaque incident identifier, mirroring
-// AnalyzeIncidentRequest.incident. The engine owns no incident lifecycle, so
-// it is carried for correlation and never interpreted.
+// Incident and Alerts retain the context-builder's internal batch shape. The
+// public AnalyzeAlert transport supplies one alert and leaves Incident empty.
 type ContextInput struct {
 	RequestID string  `json:"request_id"`
 	Incident  string  `json:"incident"`
@@ -378,30 +377,21 @@ type RCAResult struct {
 	RuleExecutions []RuleExecution `json:"rule_executions,omitempty"`
 }
 
-// RootCause is one conclusion a rule asserted, with the actions attached to
-// it.
-//
-// ID is chosen by the rule author and is the join key between Assert and
-// Recommend inside a document. Two rules asserting the same ID with the same
-// metadata are the same finding reached twice; with different metadata they
-// are a contradiction, which is a rule-set bug rather than something to
-// average out.
+// RootCause is one conclusion a rule asserted. Assertions with the same
+// category, role and summary are one finding and their components are merged.
 type RootCause struct {
-	ID       string `json:"id"`
 	Category string `json:"category"`
+	Role     string `json:"role"` // PRIMARY | CONTRIBUTING | SUSPECTED
 	Summary  string `json:"summary"`
 
-	// Entity is the LTREE path of the thing being blamed.
-	Entity string `json:"entity"`
+	Components []Component `json:"components"`
+}
 
-	Role string `json:"role"` // PRIMARY | CONTRIBUTING | SUSPECTED
-
-	// Confidence is on a 0..1 scale and is stated by the rule, not computed.
-	// There is no scoring policy left to interpret it: a rule that is less
-	// sure says a smaller number.
-	Confidence float64 `json:"confidence"`
-
-	Actions []RecommendedAction `json:"actions,omitempty"`
+// Component is one managed object supporting a root-cause conclusion. The
+// wire contract permits one recommended action per component.
+type Component struct {
+	Entity string             `json:"entity"`
+	Action *RecommendedAction `json:"action,omitempty"`
 }
 
 // RecommendedAction is a change proposed to remedy a root cause.
@@ -439,10 +429,8 @@ type RuleExecution struct {
 	// whose output was discarded reports 0.
 	RootCauseCount int `json:"root_cause_count"`
 
-	// Passes is how many times the document was executed — once per subject the
-	// snapshot offered. A row that concluded nothing over forty passes and a row
-	// that never got past its first are different problems, and only this
-	// separates them.
+	// Passes is 1 when the document's single execution returned successfully
+	// and 0 when it failed before completing or was skipped.
 	Passes int `json:"passes,omitempty"`
 
 	// Latency is wall-clock, so it is excluded from JSON: it would make every
@@ -453,7 +441,7 @@ type RuleExecution struct {
 
 // --- analysis result -----------------------------------------------------
 
-// AnalysisResult is what one AnalyzeIncident call concluded, in the shape the
+// AnalysisResult is what one AnalyzeAlert call concluded, in the shape the
 // response is built from.
 //
 // It carries strictly less than the stages produced. The snapshot, the rule

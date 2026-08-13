@@ -1,100 +1,75 @@
 rule DIAGWLoadBalancerDown "The DIAGW load balancer is unavailable" salience 100 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
-        Ctx.Link.IsSeveredTo("ims.vdu_sb_diameter_core", Subject.Path()) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_loadbalancer_diagw" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_cs_loadbalancer_diagw"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_loadbalancer_diagw")
     then
         Result.Assert(
-            "rc-diagw-loadbalancer-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW load balancer instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.55
+            "DIAGW load balancer is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-loadbalancer-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_loadbalancer_diagw")
         );
 }
 
 rule DIAGWDiameterRouterDown "The DIAGW Diameter router is unavailable" salience 90 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_diameter_router" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_diameter_router")
     then
         Result.Assert(
-            "rc-diagw-diameter-router-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW Diameter router instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW Diameter router is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-diameter-router-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_diameter_router")
         );
 }
 
 rule DIAGWLogicDown "The DIAGW routing logic is unavailable" salience 80 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_diag_logic" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_diag_logic")
     then
         Result.Assert(
-            "rc-diagw-logic-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW routing logic instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW routing logic is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-logic-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_diag_logic")
         );
 }
 
 rule DIAGWHSSConnectorDown "The DIAGW HSS connector is unavailable" salience 70 {
     when
-        Ctx.Alerts.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
         Ctx.Link.IsSeveredBetween(
-            "ims.vdu_sb_diameter_core",
+            Ctx.Alert.SourcePath(),
             "ims.vdu_cs_loadbalancer_diagw"
         ) &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_cs_hss_connector" &&
-        Ctx.VNFC.IsDown(Subject.Path())
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_cs_hss_connector")
     then
         Result.Assert(
-            "rc-diagw-hss-connector-down-" + Subject.Path(),
             "DIAGW_DOWN",
-            "DIAGW HSS connector instance is TERMINATED",
-            Subject.Path(),
             "PRIMARY",
-            0.35
+            "DIAGW HSS connector is unavailable"
         );
-        Result.Recommend(
-            "rc-diagw-hss-connector-down-" + Subject.Path(),
-            "RESTART_VNFC",
-            Subject.Path(),
-            "REPLACE"
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_cs_hss_connector")
         );
 }

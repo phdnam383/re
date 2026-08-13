@@ -38,9 +38,9 @@ const (
 //     PostgreSQL, and a rule that could reach outside the snapshot would turn
 //     a row edit into arbitrary I/O.
 type Facts struct {
-	Alerts        *AlertFacts
-	VDU           *VDUFacts
-	VNFC          *VNFCFacts
+	Alert         *AlertFacts
+	Vdu           *VDUFacts
+	Vnfc          *VNFCFacts
 	Link          *LinkFacts
 	Configuration *ConfigurationFacts
 
@@ -53,36 +53,38 @@ type Facts struct {
 func NewFacts(snap analysis.ContextSnapshot) *Facts {
 	v := newView(snap)
 	return &Facts{
-		Alerts:        &AlertFacts{v: v},
-		VDU:           &VDUFacts{v: v},
-		VNFC:          &VNFCFacts{v: v},
+		Alert:         &AlertFacts{v: v},
+		Vdu:           &VDUFacts{v: v},
+		Vnfc:          &VNFCFacts{v: v},
 		Link:          &LinkFacts{v: v},
 		Configuration: &ConfigurationFacts{v: v},
 		v:             v,
 	}
 }
 
-// subjects is the ordered list of entities the rule set is run against, one
-// execution pass each. Unexported because it is the runner's concern: a rule
-// sees the one subject its own pass was given, never the list.
-func (f *Facts) subjects() []*SubjectFacts { return f.v.subjects() }
-
 // --- alerts --------------------------------------------------------------
 
 // AlertFacts answers questions about the alerts that opened the incident.
 type AlertFacts struct{ v *view }
 
-// HasCause reports whether any alert in the incident carries this probable
-// cause. It is incident-wide on purpose: it is the guard a scenario rule opens
-// with to establish that it is looking at the right kind of incident at all,
-// before it starts asking about specific entities.
+// HasCause reports whether the request's alert carries this probable cause.
 func (f *AlertFacts) HasCause(cause string) bool {
-	for _, a := range f.v.snap.Input.Alerts {
-		if equalFold(a.ProbableCause, cause) {
+	for _, alert := range f.v.snap.Input.Alerts {
+		if equalFold(alert.ProbableCause, cause) {
 			return true
 		}
 	}
 	return false
+}
+
+// SourcePath is the managed-object path that raised the request's alert.
+func (f *AlertFacts) SourcePath() string { return f.alert().SourcePath }
+
+func (f *AlertFacts) alert() analysis.Alert {
+	if len(f.v.snap.Input.Alerts) == 0 {
+		return analysis.Alert{}
+	}
+	return f.v.snap.Input.Alerts[0]
 }
 
 // HasOverload reports whether the entity, or anything below it, raised an
@@ -161,12 +163,28 @@ func (f *VNFCFacts) IsDown(path string) bool {
 	return equalFold(f.Status(path), statusTerminated)
 }
 
+// HasAnyDownInVDU reports whether a VDU owns at least one TERMINATED VNFC.
+func (f *VNFCFacts) HasAnyDownInVDU(vduPath string) bool {
+	return len(f.DownPathsInVDU(vduPath)) > 0
+}
+
+// DownPathsInVDU returns the deterministic paths of all TERMINATED VNFCs owned
+// by a VDU. Snapshot collections are already path-sorted by the Context Builder.
+func (f *VNFCFacts) DownPathsInVDU(vduPath string) []string {
+	var out []string
+	for _, vnfc := range f.v.vnfcsByVDU[vduPath] {
+		if equalFold(vnfc.Status, statusTerminated) {
+			out = append(out, vnfc.Path)
+		}
+	}
+	return out
+}
+
 // Parent is the path of the VDU that owns this VNFC, or "" when the snapshot
 // does not carry it.
 //
-// This is how a rule scopes itself to a deployment unit without naming any
-// instance: Parent(Subject.Path()) == "ims.vdu_x" is true for whichever
-// instances of that VDU exist at the time, however many there are.
+// This lets collection-oriented rule helpers group instances by deployment
+// unit without deriving containment from path strings.
 //
 // It returns VNFC.VDUPath as the Context Builder recorded it rather than
 // trimming the last label off the path. Containment is something the snapshot
@@ -196,9 +214,9 @@ func (f *LinkFacts) IsDown(src, dst string) bool {
 	return linkUnusable(f.Status(src, dst))
 }
 
-// IsSeveredBetween reports whether connectivity from one VDU to another is
-// wholly lost: at least one link between their instances is known, and every
-// known one is unusable.
+// IsSeveredBetween reports whether connectivity from a source to a destination
+// VDU is wholly lost: at least one matching link is known, and every known one
+// is unusable. The source may be a VDU (all of its VNFCs) or one exact VNFC.
 //
 // The quantifier is "every", not "any", and that is the whole point. A VDU pair
 // has as many links as it has instance pairs, so "any link is down" gets easier
@@ -210,30 +228,30 @@ func (f *LinkFacts) IsDown(src, dst string) bool {
 // vacuously true and would turn a snapshot that was never given the topology
 // into a reported outage — the same reason VDU.IsDegraded insists on a positive
 // desired count before calling anything degraded.
-func (f *LinkFacts) IsSeveredBetween(srcVDU, dstVDU string) bool {
-	return severed(f.v.linksBetween(srcVDU, dstVDU))
+func (f *LinkFacts) IsSeveredBetween(srcPath, dstVDU string) bool {
+	return severed(f.v.linksBetween(srcPath, dstVDU))
 }
 
 // IsSeveredTo reports whether every known link from an instance of the source
 // VDU to exactly this destination instance is unusable.
 //
-// This is the per-instance form: where IsSeveredBetween answers "the two VDUs
-// cannot reach each other", this answers "nothing can reach this one instance",
-// which is the evidence a rule needs when the instance it is about to blame is
-// itself the destination.
+// This is the per-destination-instance form: where IsSeveredBetween selects a
+// whole destination VDU, this answers whether the selected source cannot reach
+// one exact destination instance.
 func (f *LinkFacts) IsSeveredTo(srcVDU, dstPath string) bool {
 	return severed(f.v.linksTo(srcVDU, dstPath))
 }
 
-// DownCountBetween is how many links between the two VDUs are unusable.
+// DownCountBetween is how many matching links from a source VDU or VNFC to the
+// destination VDU are unusable.
 //
 // It exists for the rule that wants a threshold rather than the absolute
 // IsSeveredBetween states — GRL has no way to count a collection itself, so a
 // rule that fires once half the paths are gone needs the count as an
 // expression.
-func (f *LinkFacts) DownCountBetween(srcVDU, dstVDU string) int {
+func (f *LinkFacts) DownCountBetween(srcPath, dstVDU string) int {
 	count := 0
-	for _, l := range f.v.linksBetween(srcVDU, dstVDU) {
+	for _, l := range f.v.linksBetween(srcPath, dstVDU) {
 		if linkUnusable(l.Status) {
 			count++
 		}

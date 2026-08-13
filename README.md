@@ -1,18 +1,23 @@
 # re — Incident Analysis Engine
 
-A gRPC service that answers one question: given a set of alerts, what caused
-the incident and what should be done about it.
+A gRPC service that answers one question: given an alert, what caused it and
+what should be done about it.
 
 ```text
-AnalyzeIncident (gRPC)
+AnalyzeAlert (gRPC)
     → Context Builder     gathers only what the operator's profiles allow
     → RCA Rule Engine     runs the operator's GRL rules over that context
-    → AnalyzeIncidentResponse
+    → AnalyzeAlertResponse
 ```
 
 Both stages are driven by data in PostgreSQL — `context_profile` says what may
 be fetched, `rca_rule` says what may be concluded — so changing the engine's
 behaviour is a database change, not a deployment.
+
+Each enabled `rca_rule` document executes exactly once over the complete
+context snapshot. Collection facts such as `Ctx.Vnfc.DownPathsInVDU(vdu)` perform
+entity iteration in Go; GRL rules do not run once per VDU/VNFC and do not name
+scaling-created instance paths.
 
 ## Requirements
 
@@ -74,8 +79,7 @@ finish, then forces the rest.
 ```bash
 grpcurl -plaintext -d '{
   "request_id": "req-sipgw-0001",
-  "incident": "inc-sipgw-0001",
-  "alerts": [{
+  "alert": {
     "id": "aaaaaaaa-1111-4111-8111-111111111111",
     "source_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
     "alert_type": "COMMUNICATIONS_ALERT",
@@ -86,8 +90,8 @@ grpcurl -plaintext -d '{
     "additional_information": {
       "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
     }
-  }]
-}' -proto proto/engine.proto localhost:30051 mdaf.v1.IncidentAnalysisEngine/AnalyzeIncident
+  }
+}' -proto proto/engine.proto localhost:30051 mdaf.v1.RuleEngine/AnalyzeAlert
 ```
 
 Server reflection is not enabled, so `-proto proto/engine.proto` is required.
@@ -110,6 +114,10 @@ Complete responses for the three shipped scenarios are in
 `PARTIAL` when it ran over an incomplete context — it is the stage that saw
 both the evidence and the gaps.
 
+Root causes are merged by `(category, role, summary)`. Each root cause contains
+the affected `components`; a component may carry one specialised recommended
+action such as `RESTART_VNFC` or `SET_CONFIG`.
+
 `meta.missing_context` names every target that was asked for and not obtained,
 with a `reason` (`NOT_FOUND`, `QUERY_FAILED`, `REQUEST_FAILED`, `HTTP_STATUS`,
 `TIMEOUT`, `EMPTY_BODY`, `INVALID_JSON`). Provider and entity alone cannot
@@ -123,7 +131,7 @@ that is a problem with the rule set, and it is in the server log.
 
 | gRPC code | When | Fix |
 |---|---|---|
-| `InvalidArgument` | Missing `request_id`, `incident`, alerts, or an alert without `id`/`source_path`. The message names the field. | Caller. |
+| `InvalidArgument` | Missing `request_id` or alert, or an alert without `id`/`source_path`. The message names the field. | Caller. |
 | `FailedPrecondition` `missing context_profile` | No enabled profile's selector matched any alert. | Add or enable a `context_profile`. |
 | `FailedPrecondition` `missing rca_rule` | No enabled RCA rule. | Enable an `rca_rule`. |
 | `Canceled` / `DeadlineExceeded` | The caller stopped waiting. | Caller. |
@@ -199,7 +207,7 @@ Send it something:
 kubectl -n re port-forward svc/re-engine 31951:30051 &
 
 grpcurl -plaintext -proto proto/engine.proto -d @ 127.0.0.1:31951 \
-  mdaf.v1.IncidentAnalysisEngine/AnalyzeIncident < request.json
+  mdaf.v1.RuleEngine/AnalyzeAlert < request.json
 ```
 
 The responses for the three seeded scenarios are byte-for-byte the files in

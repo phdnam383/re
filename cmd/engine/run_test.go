@@ -122,7 +122,7 @@ func TestServeWaitsForAnInFlightRequest(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	server := grpc.NewServer()
-	mdafv1.RegisterIncidentAnalysisEngineServer(server, &blockingEngine{started: started, release: release})
+	mdafv1.RegisterRuleEngineServer(server, &blockingEngine{started: started, release: release})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,8 +138,8 @@ func TestServeWaitsForAnInFlightRequest(t *testing.T) {
 
 	answered := make(chan error, 1)
 	go func() {
-		_, err := mdafv1.NewIncidentAnalysisEngineClient(conn).AnalyzeIncident(
-			context.Background(), &mdafv1.AnalyzeIncidentRequest{RequestId: "r"})
+		_, err := mdafv1.NewRuleEngineClient(conn).AnalyzeAlert(
+			context.Background(), &mdafv1.AnalyzeAlertRequest{RequestId: "r"})
 		answered <- err
 	}()
 
@@ -222,7 +222,7 @@ func TestBuildServerWiresEveryModule(t *testing.T) {
 
 	// The service has to be registered under the generated name, or a client
 	// would get Unimplemented from a process that looks healthy.
-	if _, ok := server.GetServiceInfo()["mdaf.v1.IncidentAnalysisEngine"]; !ok {
+	if _, ok := server.GetServiceInfo()["mdaf.v1.RuleEngine"]; !ok {
 		t.Errorf("services = %v, want the engine registered", server.GetServiceInfo())
 	}
 	server.Stop()
@@ -280,16 +280,16 @@ func waitForServing(t *testing.T, addr string) {
 // blockingEngine holds one request open so a shutdown test can observe the
 // graceful path.
 type blockingEngine struct {
-	mdafv1.UnimplementedIncidentAnalysisEngineServer
+	mdafv1.UnimplementedRuleEngineServer
 	started chan struct{}
 	release chan struct{}
 }
 
-func (e *blockingEngine) AnalyzeIncident(
+func (e *blockingEngine) AnalyzeAlert(
 	_ context.Context,
-	req *mdafv1.AnalyzeIncidentRequest,
-) (*mdafv1.AnalyzeIncidentResponse, error) {
+	req *mdafv1.AnalyzeAlertRequest,
+) (*mdafv1.AnalyzeAlertResponse, error) {
 	close(e.started)
 	<-e.release
-	return &mdafv1.AnalyzeIncidentResponse{RequestId: req.GetRequestId()}, nil
+	return &mdafv1.AnalyzeAlertResponse{RequestId: req.GetRequestId()}, nil
 }

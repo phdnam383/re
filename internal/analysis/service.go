@@ -20,7 +20,7 @@ type ServiceOptions struct {
 	Logger *slog.Logger
 }
 
-// Service runs one incident through both stages and assembles the result.
+// Service runs one alert through both stages and assembles the result.
 //
 // It owns the order and nothing else: no retries, no caching, no timeout of
 // its own. The caller's deadline reaches both stages unchanged, because each
@@ -48,16 +48,16 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	return s, nil
 }
 
-// AnalyzeIncident builds the context, runs the rules over it and assembles the
+// AnalyzeAlert builds the context, runs the rules over it and assembles the
 // answer.
 //
 // Neither stage is repeated and neither reloads the other's definitions: the
 // builder reads context_profile at its start and the engine reads rca_rule at
 // its start, each taking whatever is current when it runs. They are
 // deliberately not wrapped in one transaction — an operator who enables a
-// profile and a rule expects the next incident to use both, and a snapshot
+// profile and a rule expects the next alert to use both, and a snapshot
 // isolating them from that would be a cache with extra steps.
-func (s *Service) AnalyzeIncident(ctx context.Context, in ContextInput) (AnalysisResult, error) {
+func (s *Service) AnalyzeAlert(ctx context.Context, in ContextInput) (AnalysisResult, error) {
 	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
@@ -108,15 +108,31 @@ func assembleResult(in ContextInput, snapshot ContextSnapshot, rca RCAResult) (A
 		// Copied rather than aliased. The response is built from this and the
 		// snapshot belongs to the stage that produced it; sharing the backing
 		// array would let a mapper's append reach back into it.
-		RootCauses:     append([]RootCause(nil), rca.RootCauses...),
+		RootCauses:     cloneRootCauses(rca.RootCauses),
 		MissingContext: append([]MissingContext(nil), snapshot.MissingContext...),
 	}, nil
+}
+
+func cloneRootCauses(in []RootCause) []RootCause {
+	out := make([]RootCause, len(in))
+	for i, cause := range in {
+		out[i] = cause
+		out[i].Components = make([]Component, len(cause.Components))
+		for j, component := range cause.Components {
+			out[i].Components[j] = component
+			if component.Action != nil {
+				action := *component.Action
+				out[i].Components[j].Action = &action
+			}
+		}
+	}
+	return out
 }
 
 // logRuleFailures records the rule rows that did not complete.
 //
 // This is the only place the execution trace is used. It stays in the log
-// because it describes the engine's own rule set rather than the incident, and
+// because it describes the engine's own rule set rather than the alert, and
 // a caller cannot act on it.
 func (s *Service) logRuleFailures(in ContextInput, rca RCAResult) {
 	for _, ex := range rca.RuleExecutions {
@@ -125,7 +141,6 @@ func (s *Service) logRuleFailures(in ContextInput, rca RCAResult) {
 		}
 		s.log.Warn("rca rule did not complete",
 			"request_id", in.RequestID,
-			"incident", in.Incident,
 			"rule_id", ex.RuleID,
 			"rule_name", ex.RuleName,
 			"status", ex.Status,

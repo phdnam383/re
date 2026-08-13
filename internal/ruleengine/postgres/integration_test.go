@@ -290,10 +290,9 @@ func TestRuleRepositoryLoadsContentThatCompiles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("prepare: %v", err)
 			}
-			// An empty snapshot with no subject: no rule can match, so this
-			// exercises compile and evaluation without depending on any
-			// fixture topology.
-			err = session.Run(context.Background(), ruleengine.NewFacts(emptySnapshot()), nil, ruleengine.NewResult())
+			// An empty snapshot cannot match these rules, so this exercises
+			// compile and evaluation without depending on fixture topology.
+			err = session.Run(context.Background(), ruleengine.NewFacts(emptySnapshot()), ruleengine.NewResult())
 			if err != nil {
 				t.Errorf("execute: %v", err)
 			}

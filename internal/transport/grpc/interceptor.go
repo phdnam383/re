@@ -61,7 +61,7 @@ func LoggingInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			return resp, err
 		}
 
-		if r, ok := resp.(*mdafv1.AnalyzeIncidentResponse); ok {
+		if r, ok := resp.(*mdafv1.AnalyzeAlertResponse); ok {
 			attrs = append(attrs,
 				"overall_status", r.GetStatus().GetOverall(),
 				"context_status", r.GetStatus().GetContext(),
@@ -79,7 +79,7 @@ func LoggingInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 // interceptor does not recognise. The id is the caller's own string and is
 // logged as-is; it is the only part of the request that appears in the log.
 func requestIDOf(req any) string {
-	if r, ok := req.(*mdafv1.AnalyzeIncidentRequest); ok {
+	if r, ok := req.(*mdafv1.AnalyzeAlertRequest); ok {
 		return r.GetRequestId()
 	}
 	return ""

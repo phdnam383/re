@@ -13,27 +13,22 @@ import (
 // so the GRL runtime in grule.go is replaceable and the runner can be tested
 // without compiling any rule source.
 //
-// Preparing is separated from running because a row is executed once per
-// subject. Whatever a runtime must build per document — for GRL, a compile
-// lookup and a knowledge base clone — is built once here and reused by every
-// pass, so fanning out over a hundred instances does not cost a hundred clones.
+// Preparing is separated from running because compilation and execution have
+// different failure modes. For GRL, Prepare performs the compile lookup and
+// clones one knowledge base; Run evaluates that document exactly once over the
+// complete context snapshot.
 type Runtime interface {
 	Prepare(rule analysis.RuleDefinition) (Session, error)
 }
 
-// Session is one prepared rule document, run once per subject.
+// Session is one prepared rule document, run exactly once.
 //
 // An implementation must respect ctx cancellation, must not mutate the facts,
 // and must report an evaluation failure as an error rather than as a rule that
 // simply did not match — the two are indistinguishable to a caller reading
 // only the output, and only one of them is a working rule set.
-//
-// Run is called repeatedly with the same facts and sink and a different
-// subject each time. It must leave nothing behind between calls: whatever a
-// pass fires must not stop the next pass from firing the same rule about a
-// different entity.
 type Session interface {
-	Run(ctx context.Context, facts *Facts, subject *SubjectFacts, out *Result) error
+	Run(ctx context.Context, facts *Facts, out *Result) error
 }
 
 // --- execution records ---------------------------------------------------
@@ -60,8 +55,8 @@ func failedExecution(rule analysis.RuleDefinition, err error, passes int, latenc
 		RuleName: rule.Name,
 		Status:   analysis.RuleStatusFailed,
 		Error:    err.Error(),
-		// Passes is how far the row got before it failed, which is what says
-		// whether a document broke on its first subject or on its fortieth.
+		// Passes is 1 only when the single execution returned successfully.
+		// A compile, cancellation or evaluation failure leaves it at 0.
 		Passes:  passes,
 		Latency: latency,
 		// RootCauseCount stays 0: a failed row's output is discarded whole, so

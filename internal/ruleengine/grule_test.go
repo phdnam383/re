@@ -19,7 +19,7 @@ rule %s "test rule" salience %d {
     when
         %s
     then
-        Result.Assert("%s", "CATEGORY", "summary", "ims.a", "PRIMARY", 0.5);
+        Result.Assert("CATEGORY", "PRIMARY", "%s");
 }
 `, name, salience, when, causeID)
 }
@@ -28,15 +28,13 @@ func grlRule(content string) analysis.RuleDefinition {
 	return analysis.RuleDefinition{ID: "rule-id", Name: "test_rule", Content: content}
 }
 
-// runGRL executes one document over an empty-but-COMPLETE snapshot, which
-// offers exactly one subject: the no-subject pass.
+// runGRL executes one document over an empty-but-COMPLETE snapshot.
 func runGRL(t *testing.T, rt *GRLRuntime, rule analysis.RuleDefinition) (*Result, error) {
 	t.Helper()
 	return runGRLOver(t, rt, rule, completeSnapshot())
 }
 
-// runGRLOver executes one document over a snapshot, once per subject, exactly
-// as the runner does.
+// runGRLOver executes one document exactly once, as the runner does.
 func runGRLOver(
 	t *testing.T,
 	rt *GRLRuntime,
@@ -52,10 +50,8 @@ func runGRLOver(
 
 	facts := NewFacts(snap)
 	sink := NewResult()
-	for _, subject := range facts.subjects() {
-		if err := session.Run(context.Background(), facts, subject, sink); err != nil {
-			return sink, err
-		}
+	if err := session.Run(context.Background(), facts, sink); err != nil {
+		return sink, err
 	}
 	return sink, nil
 }
@@ -63,7 +59,7 @@ func runGRLOver(
 func causeIDs(r *Result) []string {
 	var out []string
 	for _, c := range r.RootCauses() {
-		out = append(out, c.ID)
+		out = append(out, c.Summary)
 	}
 	return out
 }
@@ -94,8 +90,8 @@ func TestGRLFiresEveryMatchingRuleOnceInSalienceOrder(t *testing.T) {
 }
 
 func TestGRLNonMatchingRulesProduceNothing(t *testing.T) {
-	doc := grlAssert("Matches", 100, `Ctx.Alerts.HasCause("PRESENT")`, "rc-yes") +
-		grlAssert("DoesNot", 90, `Ctx.Alerts.HasCause("ABSENT")`, "rc-no")
+	doc := grlAssert("Matches", 100, `Ctx.Alert.HasCause("PRESENT")`, "rc-yes") +
+		grlAssert("DoesNot", 90, `Ctx.Alert.HasCause("ABSENT")`, "rc-no")
 
 	snap := completeSnapshot()
 	snap.Input.Alerts = []analysis.Alert{{ID: "a", SourcePath: "ims.a", ProbableCause: "PRESENT"}}
@@ -139,7 +135,7 @@ rule Silent "fires and concludes nothing" salience 100 {
     when
         true
     then
-        Ctx.Alerts.HasCause("ANYTHING");
+        Ctx.Alert.HasCause("ANYTHING");
 }
 `
 	_, err := runGRL(t, NewGRLRuntime(), grlRule(doc))
@@ -181,9 +177,9 @@ func TestGRLEvaluationErrorIsNotSilentlyANonMatch(t *testing.T) {
 	const doc = `
 rule Broken "calls a fact that does not exist" salience 100 {
     when
-        Ctx.Alerts.NoSuchMethod("x")
+        Ctx.Alert.NoSuchMethod("x")
     then
-        Result.Assert("rc-1", "C", "s", "ims.a", "PRIMARY", 0.5);
+        Result.Assert("C", "PRIMARY", "s");
 }
 `
 	sink, err := runGRL(t, NewGRLRuntime(), grlRule(doc))
@@ -203,7 +199,7 @@ rule UsesUnbound "reads a fact name that is not bound" salience 100 {
     when
         Subject.Path == "ims.a"
     then
-        Result.Assert("rc-1", "C", "s", "ims.a", "PRIMARY", 0.5);
+        Result.Assert("C", "PRIMARY", "s");
 }
 `
 	if _, err := runGRL(t, NewGRLRuntime(), grlRule(doc)); err == nil {
@@ -220,7 +216,7 @@ func TestGRLCancellationStopsExecution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
-	if err := session.Run(ctx, NewFacts(completeSnapshot()), noSubject, NewResult()); err == nil {
+	if err := session.Run(ctx, NewFacts(completeSnapshot()), NewResult()); err == nil {
 		t.Fatal("Run = nil, want a cancellation error")
 	}
 }
@@ -407,8 +403,7 @@ func TestCacheIsSafeUnderConcurrentUse(t *testing.T) {
 func TestGRLRuntimeIsSafeUnderConcurrentUse(t *testing.T) {
 	// Each Prepare takes a clone because working memory is mutable; two
 	// analyses sharing one blueprint would corrupt each other's evaluation
-	// state. The clone is per row, not per pass, so this is the boundary that
-	// has to hold.
+	// state. The clone is per row, so this is the boundary that has to hold.
 	rt := NewGRLRuntime()
 	doc := grlRule(grlAssert("A", 100, "true", "rc-a") + grlAssert("B", 90, "true", "rc-b"))
 

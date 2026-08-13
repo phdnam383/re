@@ -1,5 +1,5 @@
 // Package grpc adapts the Analysis Service to the generated
-// IncidentAnalysisEngine service.
+// RuleEngine service.
 //
 // It does three things and nothing else: translate protobuf to domain types
 // and back, turn a domain error into a gRPC status, and log the call. There is

@@ -70,10 +70,10 @@ func TestEngineResponseGolden(t *testing.T) {
 			}
 
 			// The request is the snapshot's own recorded input, so the golden
-			// echoes the same request_id and incident an end-to-end run would.
-			result, err := service.AnalyzeIncident(context.Background(), snapshot.Input)
+			// echoes the same request_id an end-to-end run would.
+			result, err := service.AnalyzeAlert(context.Background(), snapshot.Input)
 			if err != nil {
-				t.Fatalf("AnalyzeIncident: %v", err)
+				t.Fatalf("AnalyzeAlert: %v", err)
 			}
 
 			resp, err := responseToPB(result)

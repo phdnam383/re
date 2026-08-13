@@ -2,47 +2,47 @@
   "status": "COMPLETE",
   "root_causes": [
     {
-      "id": "rc-diagw-logic-down-ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
       "category": "DIAGW_DOWN",
-      "summary": "DIAGW routing logic instance is TERMINATED",
-      "entity": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
       "role": "PRIMARY",
-      "confidence": 0.35,
-      "actions": [
+      "summary": "DIAGW load balancer is unavailable",
+      "components": [
         {
-          "code": "RESTART_VNFC",
-          "mo_instance": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
-          "op": "REPLACE"
+          "entity": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
+            "op": "REPLACE"
+          }
         }
       ]
     },
     {
-      "id": "rc-diagw-diameter-router-down-ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
       "category": "DIAGW_DOWN",
-      "summary": "DIAGW Diameter router instance is TERMINATED",
-      "entity": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
       "role": "PRIMARY",
-      "confidence": 0.35,
-      "actions": [
+      "summary": "DIAGW Diameter router is unavailable",
+      "components": [
         {
-          "code": "RESTART_VNFC",
-          "mo_instance": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
-          "op": "REPLACE"
+          "entity": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_diameter_router.vnfc_cs_diameter_router_1",
+            "op": "REPLACE"
+          }
         }
       ]
     },
     {
-      "id": "rc-diagw-loadbalancer-down-ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
       "category": "DIAGW_DOWN",
-      "summary": "DIAGW load balancer instance is TERMINATED",
-      "entity": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
       "role": "PRIMARY",
-      "confidence": 0.55,
-      "actions": [
+      "summary": "DIAGW routing logic is unavailable",
+      "components": [
         {
-          "code": "RESTART_VNFC",
-          "mo_instance": "ims.vdu_cs_loadbalancer_diagw.vnfc_cs_loadbalancer_diagw_1",
-          "op": "REPLACE"
+          "entity": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_diag_logic.vnfc_cs_diag_logic_1",
+            "op": "REPLACE"
+          }
         }
       ]
     }
@@ -53,21 +53,21 @@
       "rule_name": "link_to_diagw_down",
       "status": "COMPLETE",
       "root_cause_count": 3,
-      "passes": 12
+      "passes": 1
     },
     {
       "rule_id": "rule-link_to_sipgw_down",
       "rule_name": "link_to_sipgw_down",
       "status": "COMPLETE",
       "root_cause_count": 0,
-      "passes": 12
+      "passes": 1
     },
     {
       "rule_id": "rule-tps_overloaded",
       "rule_name": "tps_overloaded",
       "status": "COMPLETE",
       "root_cause_count": 0,
-      "passes": 12
+      "passes": 1
     }
   ]
 }

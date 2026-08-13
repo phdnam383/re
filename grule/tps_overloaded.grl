@@ -1,47 +1,38 @@
-rule TPSReplicaDegradation "Replica degradation concentrates TPS load" salience 100 {
+rule TPSVNFCDown "A VNFC is unavailable while TPS load is high" salience 100 {
     when
-        Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.Alerts.OverloadCount("ims.vdu_sb_logic") > 1 &&
-        Ctx.VDU.IsDegraded("ims.vdu_sb_logic")
+        Ctx.Alert.HasCause("THRESHOLD_CROSSING") &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_logic")
     then
         Result.Assert(
-            "rc-tps-replica-degradation",
-            "REPLICA_DEGRADATION",
-            "sb_logic is running fewer replicas than declared while TPS load is high",
-            "ims.vdu_sb_logic",
+            "TPS_OVERLOADED",
             "PRIMARY",
-            0.55
+            "One or more sb_logic VNFCs are unavailable while TPS load is high"
         );
-        Result.Recommend(
-            "rc-tps-replica-degradation",
-            "RESTORE_REPLICAS",
-            "ims.vdu_sb_logic",
-            "REPLACE",
-            Ctx.VDU.DesiredReplicas("ims.vdu_sb_logic")
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")
         );
 }
 
 rule TPSHighLogFileConfiguration "High log-file count increases RAM usage" salience 90 {
     when
-        Ctx.Alerts.HasCause("THRESHOLD_CROSSING") &&
-        Ctx.VNFC.Parent(Subject.Path()) == "ims.vdu_sb_logic" &&
-        Ctx.Alerts.HasOverload(Subject.Path()) &&
-        Ctx.Configuration.Has(Subject.Path(), "number_of_log_file") &&
-        Ctx.Configuration.GetFloat(Subject.Path(), "number_of_log_file") >= 3.0
+        Ctx.Alert.HasCause("THRESHOLD_CROSSING") &&
+        Ctx.Configuration.Has(
+            Ctx.Alert.SourcePath(),
+            "number_of_log_file"
+        ) &&
+        Ctx.Configuration.GetFloat(
+            Ctx.Alert.SourcePath(),
+            "number_of_log_file"
+        ) >= 3.0
     then
         Result.Assert(
-            "rc-tps-high-log-file-config-" + Subject.Path(),
             "HIGH_LOG_FILE_CONFIG",
-            "number_of_log_file is too high and increases RAM consumption",
-            Subject.Path(),
             "CONTRIBUTING",
-            0.30
+            "number_of_log_file is too high and increases RAM consumption"
         );
-        Result.Recommend(
-            "rc-tps-high-log-file-config-" + Subject.Path(),
-            "SET_CONFIG",
-            Subject.Path(),
-            "REPLACE",
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_num_of_log_file",
             3
         );
 }
