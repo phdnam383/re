@@ -22,29 +22,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type AnalyzeIncidentRequest struct {
+type AnalyzeAlertRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Incident      string                 `protobuf:"bytes,2,opt,name=incident,proto3" json:"incident,omitempty"`
-	Alerts        []*Alert               `protobuf:"bytes,3,rep,name=alerts,proto3" json:"alerts,omitempty"`
+	Alert         *Alert                 `protobuf:"bytes,2,opt,name=alert,proto3" json:"alert,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AnalyzeIncidentRequest) Reset() {
-	*x = AnalyzeIncidentRequest{}
+func (x *AnalyzeAlertRequest) Reset() {
+	*x = AnalyzeAlertRequest{}
 	mi := &file_engine_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AnalyzeIncidentRequest) String() string {
+func (x *AnalyzeAlertRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AnalyzeIncidentRequest) ProtoMessage() {}
+func (*AnalyzeAlertRequest) ProtoMessage() {}
 
-func (x *AnalyzeIncidentRequest) ProtoReflect() protoreflect.Message {
+func (x *AnalyzeAlertRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_engine_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -56,57 +55,49 @@ func (x *AnalyzeIncidentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AnalyzeIncidentRequest.ProtoReflect.Descriptor instead.
-func (*AnalyzeIncidentRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use AnalyzeAlertRequest.ProtoReflect.Descriptor instead.
+func (*AnalyzeAlertRequest) Descriptor() ([]byte, []int) {
 	return file_engine_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AnalyzeIncidentRequest) GetRequestId() string {
+func (x *AnalyzeAlertRequest) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *AnalyzeIncidentRequest) GetIncident() string {
+func (x *AnalyzeAlertRequest) GetAlert() *Alert {
 	if x != nil {
-		return x.Incident
-	}
-	return ""
-}
-
-func (x *AnalyzeIncidentRequest) GetAlerts() []*Alert {
-	if x != nil {
-		return x.Alerts
+		return x.Alert
 	}
 	return nil
 }
 
-type AnalyzeIncidentResponse struct {
+type AnalyzeAlertResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Incident      string                 `protobuf:"bytes,2,opt,name=incident,proto3" json:"incident,omitempty"`
-	Status        *AnalysisStatus        `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Rca           *RootCauseAnalysis     `protobuf:"bytes,4,opt,name=rca,proto3" json:"rca,omitempty"`
-	Meta          *AnalysisMeta          `protobuf:"bytes,5,opt,name=meta,proto3" json:"meta,omitempty"`
+	Status        *AnalysisStatus        `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Rca           *RootCauseAnalysis     `protobuf:"bytes,3,opt,name=rca,proto3" json:"rca,omitempty"`
+	Meta          *AnalysisMeta          `protobuf:"bytes,4,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AnalyzeIncidentResponse) Reset() {
-	*x = AnalyzeIncidentResponse{}
+func (x *AnalyzeAlertResponse) Reset() {
+	*x = AnalyzeAlertResponse{}
 	mi := &file_engine_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AnalyzeIncidentResponse) String() string {
+func (x *AnalyzeAlertResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AnalyzeIncidentResponse) ProtoMessage() {}
+func (*AnalyzeAlertResponse) ProtoMessage() {}
 
-func (x *AnalyzeIncidentResponse) ProtoReflect() protoreflect.Message {
+func (x *AnalyzeAlertResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_engine_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -118,40 +109,33 @@ func (x *AnalyzeIncidentResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AnalyzeIncidentResponse.ProtoReflect.Descriptor instead.
-func (*AnalyzeIncidentResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use AnalyzeAlertResponse.ProtoReflect.Descriptor instead.
+func (*AnalyzeAlertResponse) Descriptor() ([]byte, []int) {
 	return file_engine_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *AnalyzeIncidentResponse) GetRequestId() string {
+func (x *AnalyzeAlertResponse) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *AnalyzeIncidentResponse) GetIncident() string {
-	if x != nil {
-		return x.Incident
-	}
-	return ""
-}
-
-func (x *AnalyzeIncidentResponse) GetStatus() *AnalysisStatus {
+func (x *AnalyzeAlertResponse) GetStatus() *AnalysisStatus {
 	if x != nil {
 		return x.Status
 	}
 	return nil
 }
 
-func (x *AnalyzeIncidentResponse) GetRca() *RootCauseAnalysis {
+func (x *AnalyzeAlertResponse) GetRca() *RootCauseAnalysis {
 	if x != nil {
 		return x.Rca
 	}
 	return nil
 }
 
-func (x *AnalyzeIncidentResponse) GetMeta() *AnalysisMeta {
+func (x *AnalyzeAlertResponse) GetMeta() *AnalysisMeta {
 	if x != nil {
 		return x.Meta
 	}
@@ -364,13 +348,10 @@ func (x *RootCauseAnalysis) GetRootCauses() []*RootCause {
 
 type RootCause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Category      string                 `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"`
+	Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"` // PRIMARY | CONTRIBUTING | SUSPECTED
 	Summary       string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
-	Entity        string                 `protobuf:"bytes,4,opt,name=entity,proto3" json:"entity,omitempty"`
-	Role          string                 `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"` // PRIMARY | CONTRIBUTING | SUSPECTED
-	Confidence    float64                `protobuf:"fixed64,6,opt,name=confidence,proto3" json:"confidence,omitempty"`
-	Actions       []*RecommendedAction   `protobuf:"bytes,7,rep,name=actions,proto3" json:"actions,omitempty"`
+	Components    []*Component           `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -405,30 +386,9 @@ func (*RootCause) Descriptor() ([]byte, []int) {
 	return file_engine_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *RootCause) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
 func (x *RootCause) GetCategory() string {
 	if x != nil {
 		return x.Category
-	}
-	return ""
-}
-
-func (x *RootCause) GetSummary() string {
-	if x != nil {
-		return x.Summary
-	}
-	return ""
-}
-
-func (x *RootCause) GetEntity() string {
-	if x != nil {
-		return x.Entity
 	}
 	return ""
 }
@@ -440,16 +400,68 @@ func (x *RootCause) GetRole() string {
 	return ""
 }
 
-func (x *RootCause) GetConfidence() float64 {
+func (x *RootCause) GetSummary() string {
 	if x != nil {
-		return x.Confidence
+		return x.Summary
 	}
-	return 0
+	return ""
 }
 
-func (x *RootCause) GetActions() []*RecommendedAction {
+func (x *RootCause) GetComponents() []*Component {
 	if x != nil {
-		return x.Actions
+		return x.Components
+	}
+	return nil
+}
+
+type Component struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entity        string                 `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	Action        *RecommendedAction     `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Component) Reset() {
+	*x = Component{}
+	mi := &file_engine_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Component) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Component) ProtoMessage() {}
+
+func (x *Component) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Component.ProtoReflect.Descriptor instead.
+func (*Component) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Component) GetEntity() string {
+	if x != nil {
+		return x.Entity
+	}
+	return ""
+}
+
+func (x *Component) GetAction() *RecommendedAction {
+	if x != nil {
+		return x.Action
 	}
 	return nil
 }
@@ -457,16 +469,16 @@ func (x *RootCause) GetActions() []*RecommendedAction {
 type RecommendedAction struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	MoInstance    string                 `protobuf:"bytes,3,opt,name=mo_instance,json=moInstance,proto3" json:"mo_instance,omitempty"`
-	Op            string                 `protobuf:"bytes,5,opt,name=op,proto3" json:"op,omitempty"` // ADD | REMOVE | REPLACE
-	Value         *structpb.Value        `protobuf:"bytes,6,opt,name=value,proto3" json:"value,omitempty"`
+	MoInstance    string                 `protobuf:"bytes,2,opt,name=mo_instance,json=moInstance,proto3" json:"mo_instance,omitempty"`
+	Op            string                 `protobuf:"bytes,3,opt,name=op,proto3" json:"op,omitempty"` // ADD | REMOVE | REPLACE
+	Value         *structpb.Value        `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecommendedAction) Reset() {
 	*x = RecommendedAction{}
-	mi := &file_engine_proto_msgTypes[6]
+	mi := &file_engine_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -478,7 +490,7 @@ func (x *RecommendedAction) String() string {
 func (*RecommendedAction) ProtoMessage() {}
 
 func (x *RecommendedAction) ProtoReflect() protoreflect.Message {
-	mi := &file_engine_proto_msgTypes[6]
+	mi := &file_engine_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -491,7 +503,7 @@ func (x *RecommendedAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecommendedAction.ProtoReflect.Descriptor instead.
 func (*RecommendedAction) Descriptor() ([]byte, []int) {
-	return file_engine_proto_rawDescGZIP(), []int{6}
+	return file_engine_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RecommendedAction) GetCode() string {
@@ -532,7 +544,7 @@ type AnalysisMeta struct {
 
 func (x *AnalysisMeta) Reset() {
 	*x = AnalysisMeta{}
-	mi := &file_engine_proto_msgTypes[7]
+	mi := &file_engine_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +556,7 @@ func (x *AnalysisMeta) String() string {
 func (*AnalysisMeta) ProtoMessage() {}
 
 func (x *AnalysisMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_engine_proto_msgTypes[7]
+	mi := &file_engine_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +569,7 @@ func (x *AnalysisMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalysisMeta.ProtoReflect.Descriptor instead.
 func (*AnalysisMeta) Descriptor() ([]byte, []int) {
-	return file_engine_proto_rawDescGZIP(), []int{7}
+	return file_engine_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AnalysisMeta) GetContextStatus() string {
@@ -575,22 +587,18 @@ func (x *AnalysisMeta) GetMissingContext() []*MissingContext {
 }
 
 type MissingContext struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Provider string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
-	Entity   string                 `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
-	Key      string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
-	// Why the context is missing: not found, non-2xx, timeout, invalid body.
-	// Provider and entity alone cannot distinguish "the row does not exist"
-	// from "the backend was unreachable", and only the second is an operator's
-	// problem.
-	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	Entity        string                 `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
+	Key           string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MissingContext) Reset() {
 	*x = MissingContext{}
-	mi := &file_engine_proto_msgTypes[8]
+	mi := &file_engine_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -602,7 +610,7 @@ func (x *MissingContext) String() string {
 func (*MissingContext) ProtoMessage() {}
 
 func (x *MissingContext) ProtoReflect() protoreflect.Message {
-	mi := &file_engine_proto_msgTypes[8]
+	mi := &file_engine_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -615,7 +623,7 @@ func (x *MissingContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MissingContext.ProtoReflect.Descriptor instead.
 func (*MissingContext) Descriptor() ([]byte, []int) {
-	return file_engine_proto_rawDescGZIP(), []int{8}
+	return file_engine_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MissingContext) GetProvider() string {
@@ -650,19 +658,17 @@ var File_engine_proto protoreflect.FileDescriptor
 
 const file_engine_proto_rawDesc = "" +
 	"\n" +
-	"\fengine.proto\x12\amdaf.v1\x1a\x1cgoogle/protobuf/struct.proto\"{\n" +
-	"\x16AnalyzeIncidentRequest\x12\x1d\n" +
+	"\fengine.proto\x12\amdaf.v1\x1a\x1cgoogle/protobuf/struct.proto\"Z\n" +
+	"\x13AnalyzeAlertRequest\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1a\n" +
-	"\bincident\x18\x02 \x01(\tR\bincident\x12&\n" +
-	"\x06alerts\x18\x03 \x03(\v2\x0e.mdaf.v1.AlertR\x06alerts\"\xde\x01\n" +
-	"\x17AnalyzeIncidentResponse\x12\x1d\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12$\n" +
+	"\x05alert\x18\x02 \x01(\v2\x0e.mdaf.v1.AlertR\x05alert\"\xbf\x01\n" +
+	"\x14AnalyzeAlertResponse\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1a\n" +
-	"\bincident\x18\x02 \x01(\tR\bincident\x12/\n" +
-	"\x06status\x18\x03 \x01(\v2\x17.mdaf.v1.AnalysisStatusR\x06status\x12,\n" +
-	"\x03rca\x18\x04 \x01(\v2\x1a.mdaf.v1.RootCauseAnalysisR\x03rca\x12)\n" +
-	"\x04meta\x18\x05 \x01(\v2\x15.mdaf.v1.AnalysisMetaR\x04meta\"\xb2\x02\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12/\n" +
+	"\x06status\x18\x02 \x01(\v2\x17.mdaf.v1.AnalysisStatusR\x06status\x12,\n" +
+	"\x03rca\x18\x03 \x01(\v2\x1a.mdaf.v1.RootCauseAnalysisR\x03rca\x12)\n" +
+	"\x04meta\x18\x04 \x01(\v2\x15.mdaf.v1.AnalysisMetaR\x04meta\"\xb2\x02\n" +
 	"\x05Alert\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vsource_path\x18\x02 \x01(\tR\n" +
@@ -681,23 +687,23 @@ const file_engine_proto_rawDesc = "" +
 	"\x03rca\x18\x03 \x01(\tR\x03rca\"H\n" +
 	"\x11RootCauseAnalysis\x123\n" +
 	"\vroot_causes\x18\x01 \x03(\v2\x12.mdaf.v1.RootCauseR\n" +
-	"rootCauses\"\xd3\x01\n" +
-	"\tRootCause\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\bcategory\x18\x02 \x01(\tR\bcategory\x12\x18\n" +
-	"\asummary\x18\x03 \x01(\tR\asummary\x12\x16\n" +
-	"\x06entity\x18\x04 \x01(\tR\x06entity\x12\x12\n" +
-	"\x04role\x18\x05 \x01(\tR\x04role\x12\x1e\n" +
+	"rootCauses\"\x89\x01\n" +
+	"\tRootCause\x12\x1a\n" +
+	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x122\n" +
 	"\n" +
-	"confidence\x18\x06 \x01(\x01R\n" +
-	"confidence\x124\n" +
-	"\aactions\x18\a \x03(\v2\x1a.mdaf.v1.RecommendedActionR\aactions\"\xa2\x01\n" +
+	"components\x18\x04 \x03(\v2\x12.mdaf.v1.ComponentR\n" +
+	"components\"W\n" +
+	"\tComponent\x12\x16\n" +
+	"\x06entity\x18\x01 \x01(\tR\x06entity\x122\n" +
+	"\x06action\x18\x02 \x01(\v2\x1a.mdaf.v1.RecommendedActionR\x06action\"\x86\x01\n" +
 	"\x11RecommendedAction\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1f\n" +
-	"\vmo_instance\x18\x03 \x01(\tR\n" +
+	"\vmo_instance\x18\x02 \x01(\tR\n" +
 	"moInstance\x12\x0e\n" +
-	"\x02op\x18\x05 \x01(\tR\x02op\x12,\n" +
-	"\x05value\x18\x06 \x01(\v2\x16.google.protobuf.ValueR\x05valueJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bpriorityR\x04path\"w\n" +
+	"\x02op\x18\x03 \x01(\tR\x02op\x12,\n" +
+	"\x05value\x18\x04 \x01(\v2\x16.google.protobuf.ValueR\x05value\"w\n" +
 	"\fAnalysisMeta\x12%\n" +
 	"\x0econtext_status\x18\x01 \x01(\tR\rcontextStatus\x12@\n" +
 	"\x0fmissing_context\x18\x02 \x03(\v2\x17.mdaf.v1.MissingContextR\x0emissingContext\"n\n" +
@@ -705,9 +711,10 @@ const file_engine_proto_rawDesc = "" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x16\n" +
 	"\x06entity\x18\x02 \x01(\tR\x06entity\x12\x10\n" +
 	"\x03key\x18\x03 \x01(\tR\x03key\x12\x16\n" +
-	"\x06reason\x18\x04 \x01(\tR\x06reason2n\n" +
-	"\x16IncidentAnalysisEngine\x12T\n" +
-	"\x0fAnalyzeIncident\x12\x1f.mdaf.v1.AnalyzeIncidentRequest\x1a .mdaf.v1.AnalyzeIncidentResponseB\x16Z\x14re/gen/mdafv1;mdafv1b\x06proto3"
+	"\x06reason\x18\x04 \x01(\tR\x06reason2Y\n" +
+	"\n" +
+	"RuleEngine\x12K\n" +
+	"\fAnalyzeAlert\x12\x1c.mdaf.v1.AnalyzeAlertRequest\x1a\x1d.mdaf.v1.AnalyzeAlertResponseB\x16Z\x14re/gen/mdafv1;mdafv1b\x06proto3"
 
 var (
 	file_engine_proto_rawDescOnce sync.Once
@@ -721,37 +728,39 @@ func file_engine_proto_rawDescGZIP() []byte {
 	return file_engine_proto_rawDescData
 }
 
-var file_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_engine_proto_goTypes = []any{
-	(*AnalyzeIncidentRequest)(nil),  // 0: mdaf.v1.AnalyzeIncidentRequest
-	(*AnalyzeIncidentResponse)(nil), // 1: mdaf.v1.AnalyzeIncidentResponse
-	(*Alert)(nil),                   // 2: mdaf.v1.Alert
-	(*AnalysisStatus)(nil),          // 3: mdaf.v1.AnalysisStatus
-	(*RootCauseAnalysis)(nil),       // 4: mdaf.v1.RootCauseAnalysis
-	(*RootCause)(nil),               // 5: mdaf.v1.RootCause
-	(*RecommendedAction)(nil),       // 6: mdaf.v1.RecommendedAction
-	(*AnalysisMeta)(nil),            // 7: mdaf.v1.AnalysisMeta
-	(*MissingContext)(nil),          // 8: mdaf.v1.MissingContext
-	(*structpb.Struct)(nil),         // 9: google.protobuf.Struct
-	(*structpb.Value)(nil),          // 10: google.protobuf.Value
+	(*AnalyzeAlertRequest)(nil),  // 0: mdaf.v1.AnalyzeAlertRequest
+	(*AnalyzeAlertResponse)(nil), // 1: mdaf.v1.AnalyzeAlertResponse
+	(*Alert)(nil),                // 2: mdaf.v1.Alert
+	(*AnalysisStatus)(nil),       // 3: mdaf.v1.AnalysisStatus
+	(*RootCauseAnalysis)(nil),    // 4: mdaf.v1.RootCauseAnalysis
+	(*RootCause)(nil),            // 5: mdaf.v1.RootCause
+	(*Component)(nil),            // 6: mdaf.v1.Component
+	(*RecommendedAction)(nil),    // 7: mdaf.v1.RecommendedAction
+	(*AnalysisMeta)(nil),         // 8: mdaf.v1.AnalysisMeta
+	(*MissingContext)(nil),       // 9: mdaf.v1.MissingContext
+	(*structpb.Struct)(nil),      // 10: google.protobuf.Struct
+	(*structpb.Value)(nil),       // 11: google.protobuf.Value
 }
 var file_engine_proto_depIdxs = []int32{
-	2,  // 0: mdaf.v1.AnalyzeIncidentRequest.alerts:type_name -> mdaf.v1.Alert
-	3,  // 1: mdaf.v1.AnalyzeIncidentResponse.status:type_name -> mdaf.v1.AnalysisStatus
-	4,  // 2: mdaf.v1.AnalyzeIncidentResponse.rca:type_name -> mdaf.v1.RootCauseAnalysis
-	7,  // 3: mdaf.v1.AnalyzeIncidentResponse.meta:type_name -> mdaf.v1.AnalysisMeta
-	9,  // 4: mdaf.v1.Alert.additional_information:type_name -> google.protobuf.Struct
+	2,  // 0: mdaf.v1.AnalyzeAlertRequest.alert:type_name -> mdaf.v1.Alert
+	3,  // 1: mdaf.v1.AnalyzeAlertResponse.status:type_name -> mdaf.v1.AnalysisStatus
+	4,  // 2: mdaf.v1.AnalyzeAlertResponse.rca:type_name -> mdaf.v1.RootCauseAnalysis
+	8,  // 3: mdaf.v1.AnalyzeAlertResponse.meta:type_name -> mdaf.v1.AnalysisMeta
+	10, // 4: mdaf.v1.Alert.additional_information:type_name -> google.protobuf.Struct
 	5,  // 5: mdaf.v1.RootCauseAnalysis.root_causes:type_name -> mdaf.v1.RootCause
-	6,  // 6: mdaf.v1.RootCause.actions:type_name -> mdaf.v1.RecommendedAction
-	10, // 7: mdaf.v1.RecommendedAction.value:type_name -> google.protobuf.Value
-	8,  // 8: mdaf.v1.AnalysisMeta.missing_context:type_name -> mdaf.v1.MissingContext
-	0,  // 9: mdaf.v1.IncidentAnalysisEngine.AnalyzeIncident:input_type -> mdaf.v1.AnalyzeIncidentRequest
-	1,  // 10: mdaf.v1.IncidentAnalysisEngine.AnalyzeIncident:output_type -> mdaf.v1.AnalyzeIncidentResponse
-	10, // [10:11] is the sub-list for method output_type
-	9,  // [9:10] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	6,  // 6: mdaf.v1.RootCause.components:type_name -> mdaf.v1.Component
+	7,  // 7: mdaf.v1.Component.action:type_name -> mdaf.v1.RecommendedAction
+	11, // 8: mdaf.v1.RecommendedAction.value:type_name -> google.protobuf.Value
+	9,  // 9: mdaf.v1.AnalysisMeta.missing_context:type_name -> mdaf.v1.MissingContext
+	0,  // 10: mdaf.v1.RuleEngine.AnalyzeAlert:input_type -> mdaf.v1.AnalyzeAlertRequest
+	1,  // 11: mdaf.v1.RuleEngine.AnalyzeAlert:output_type -> mdaf.v1.AnalyzeAlertResponse
+	11, // [11:12] is the sub-list for method output_type
+	10, // [10:11] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_engine_proto_init() }
@@ -765,7 +774,7 @@ func file_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engine_proto_rawDesc), len(file_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -6,25 +6,21 @@ import "google/protobuf/struct.proto";
 
 option go_package = "re/gen/mdafv1;mdafv1";
 
-service IncidentAnalysisEngine {
-  rpc AnalyzeIncident(AnalyzeIncidentRequest)
-      returns (AnalyzeIncidentResponse);
+service RuleEngine {
+  rpc AnalyzeAlert(AnalyzeAlertRequest)
+      returns (AnalyzeAlertResponse);
 }
 
-message AnalyzeIncidentRequest {
+message AnalyzeAlertRequest {
   string request_id     = 1;
-  string incident       = 2;
-  repeated Alert alerts = 3;
+  Alert alert           = 2;
 }
 
-message AnalyzeIncidentResponse {
+message AnalyzeAlertResponse {
   string request_id     = 1;
-  string incident       = 2;
-
-  AnalysisStatus status = 3;
-
-  RootCauseAnalysis rca = 4;
-  AnalysisMeta meta     = 5;
+  AnalysisStatus status = 2;
+  RootCauseAnalysis rca = 3;
+  AnalysisMeta meta     = 4;
 }
 
 message Alert {
@@ -49,25 +45,22 @@ message RootCauseAnalysis {
 }
 
 message RootCause {
-  string id         = 1;
-  string category   = 2;
+  string category   = 1;
+  string role       = 2; // PRIMARY | CONTRIBUTING | SUSPECTED
   string summary    = 3;
-  string entity     = 4;
-  string role       = 5; // PRIMARY | CONTRIBUTING | SUSPECTED
-  double confidence = 6;
-  repeated RecommendedAction actions = 7;
+  repeated Component components = 4;
+}
+
+message Component {
+  string entity            = 1;
+  RecommendedAction action = 2;
 }
 
 message RecommendedAction {
-  // 2 was priority, 4 was path. The numbers stay retired so a client built
-  // against the old shape cannot have an unrelated field decoded into them.
-  reserved 2, 4;
-  reserved "priority", "path";
-
   string code           = 1;
-  string mo_instance    = 3;
-  string op             = 5; // ADD | REMOVE | REPLACE
-  google.protobuf.Value value = 6;
+  string mo_instance    = 2;
+  string op             = 3; // ADD | REMOVE | REPLACE
+  google.protobuf.Value value = 4;
 }
 
 message AnalysisMeta {
@@ -79,10 +72,5 @@ message MissingContext {
   string provider   = 1;
   string entity     = 2;
   string key        = 3;
-
-  // Why the context is missing: not found, non-2xx, timeout, invalid body.
-  // Provider and entity alone cannot distinguish "the row does not exist"
-  // from "the backend was unreachable", and only the second is an operator's
-  // problem.
   string reason     = 4;
 }

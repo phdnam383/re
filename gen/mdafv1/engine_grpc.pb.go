@@ -19,102 +19,101 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IncidentAnalysisEngine_AnalyzeIncident_FullMethodName = "/mdaf.v1.IncidentAnalysisEngine/AnalyzeIncident"
+	RuleEngine_AnalyzeAlert_FullMethodName = "/mdaf.v1.RuleEngine/AnalyzeAlert"
 )
 
-// IncidentAnalysisEngineClient is the client API for IncidentAnalysisEngine service.
+// RuleEngineClient is the client API for RuleEngine service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type IncidentAnalysisEngineClient interface {
-	AnalyzeIncident(ctx context.Context, in *AnalyzeIncidentRequest, opts ...grpc.CallOption) (*AnalyzeIncidentResponse, error)
+type RuleEngineClient interface {
+	AnalyzeAlert(ctx context.Context, in *AnalyzeAlertRequest, opts ...grpc.CallOption) (*AnalyzeAlertResponse, error)
 }
 
-type incidentAnalysisEngineClient struct {
+type ruleEngineClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewIncidentAnalysisEngineClient(cc grpc.ClientConnInterface) IncidentAnalysisEngineClient {
-	return &incidentAnalysisEngineClient{cc}
+func NewRuleEngineClient(cc grpc.ClientConnInterface) RuleEngineClient {
+	return &ruleEngineClient{cc}
 }
 
-func (c *incidentAnalysisEngineClient) AnalyzeIncident(ctx context.Context, in *AnalyzeIncidentRequest, opts ...grpc.CallOption) (*AnalyzeIncidentResponse, error) {
+func (c *ruleEngineClient) AnalyzeAlert(ctx context.Context, in *AnalyzeAlertRequest, opts ...grpc.CallOption) (*AnalyzeAlertResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AnalyzeIncidentResponse)
-	err := c.cc.Invoke(ctx, IncidentAnalysisEngine_AnalyzeIncident_FullMethodName, in, out, cOpts...)
+	out := new(AnalyzeAlertResponse)
+	err := c.cc.Invoke(ctx, RuleEngine_AnalyzeAlert_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// IncidentAnalysisEngineServer is the server API for IncidentAnalysisEngine service.
-// All implementations must embed UnimplementedIncidentAnalysisEngineServer
+// RuleEngineServer is the server API for RuleEngine service.
+// All implementations must embed UnimplementedRuleEngineServer
 // for forward compatibility.
-type IncidentAnalysisEngineServer interface {
-	AnalyzeIncident(context.Context, *AnalyzeIncidentRequest) (*AnalyzeIncidentResponse, error)
-	mustEmbedUnimplementedIncidentAnalysisEngineServer()
+type RuleEngineServer interface {
+	AnalyzeAlert(context.Context, *AnalyzeAlertRequest) (*AnalyzeAlertResponse, error)
+	mustEmbedUnimplementedRuleEngineServer()
 }
 
-// UnimplementedIncidentAnalysisEngineServer must be embedded to have
+// UnimplementedRuleEngineServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedIncidentAnalysisEngineServer struct{}
+type UnimplementedRuleEngineServer struct{}
 
-func (UnimplementedIncidentAnalysisEngineServer) AnalyzeIncident(context.Context, *AnalyzeIncidentRequest) (*AnalyzeIncidentResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method AnalyzeIncident not implemented")
+func (UnimplementedRuleEngineServer) AnalyzeAlert(context.Context, *AnalyzeAlertRequest) (*AnalyzeAlertResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnalyzeAlert not implemented")
 }
-func (UnimplementedIncidentAnalysisEngineServer) mustEmbedUnimplementedIncidentAnalysisEngineServer() {
-}
-func (UnimplementedIncidentAnalysisEngineServer) testEmbeddedByValue() {}
+func (UnimplementedRuleEngineServer) mustEmbedUnimplementedRuleEngineServer() {}
+func (UnimplementedRuleEngineServer) testEmbeddedByValue()                    {}
 
-// UnsafeIncidentAnalysisEngineServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to IncidentAnalysisEngineServer will
+// UnsafeRuleEngineServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to RuleEngineServer will
 // result in compilation errors.
-type UnsafeIncidentAnalysisEngineServer interface {
-	mustEmbedUnimplementedIncidentAnalysisEngineServer()
+type UnsafeRuleEngineServer interface {
+	mustEmbedUnimplementedRuleEngineServer()
 }
 
-func RegisterIncidentAnalysisEngineServer(s grpc.ServiceRegistrar, srv IncidentAnalysisEngineServer) {
-	// If the following call panics, it indicates UnimplementedIncidentAnalysisEngineServer was
+func RegisterRuleEngineServer(s grpc.ServiceRegistrar, srv RuleEngineServer) {
+	// If the following call panics, it indicates UnimplementedRuleEngineServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&IncidentAnalysisEngine_ServiceDesc, srv)
+	s.RegisterService(&RuleEngine_ServiceDesc, srv)
 }
 
-func _IncidentAnalysisEngine_AnalyzeIncident_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AnalyzeIncidentRequest)
+func _RuleEngine_AnalyzeAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnalyzeAlertRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(IncidentAnalysisEngineServer).AnalyzeIncident(ctx, in)
+		return srv.(RuleEngineServer).AnalyzeAlert(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: IncidentAnalysisEngine_AnalyzeIncident_FullMethodName,
+		FullMethod: RuleEngine_AnalyzeAlert_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IncidentAnalysisEngineServer).AnalyzeIncident(ctx, req.(*AnalyzeIncidentRequest))
+		return srv.(RuleEngineServer).AnalyzeAlert(ctx, req.(*AnalyzeAlertRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// IncidentAnalysisEngine_ServiceDesc is the grpc.ServiceDesc for IncidentAnalysisEngine service.
+// RuleEngine_ServiceDesc is the grpc.ServiceDesc for RuleEngine service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var IncidentAnalysisEngine_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "mdaf.v1.IncidentAnalysisEngine",
-	HandlerType: (*IncidentAnalysisEngineServer)(nil),
+var RuleEngine_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "mdaf.v1.RuleEngine",
+	HandlerType: (*RuleEngineServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AnalyzeIncident",
-			Handler:    _IncidentAnalysisEngine_AnalyzeIncident_Handler,
+			MethodName: "AnalyzeAlert",
+			Handler:    _RuleEngine_AnalyzeAlert_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
