@@ -1,4 +1,4 @@
-// End-to-end tests for the whole engine.
+// End-to-end tests for the composed engine modules.
 //
 // They drive the generated gRPC client against the real composition root:
 //
@@ -10,9 +10,8 @@
 //	  → PostgreSQL rule repository + GRL runtime
 //	  → protobuf response
 //
-// buildServer is called rather than re-assembled here, so a wiring mistake in
-// the shipping binary fails these tests instead of hiding behind a second,
-// agreeing copy of the wiring.
+// buildServer is a test-only compatibility seam now that the shipping command
+// deliberately keeps its wiring inline in main.
 //
 // They need a reachable PostgreSQL and skip without one:
 //

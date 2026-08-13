@@ -1,3 +1,5 @@
+// Test-only compatibility seams for the existing lifecycle and composition
+// tests. None of these helpers is compiled into the engine binary.
 package main
 
 import (

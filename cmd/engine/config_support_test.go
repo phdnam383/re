@@ -1,3 +1,5 @@
+// Test-only compatibility seams for the white-box configuration tests. The
+// shipping command keeps the corresponding logic inline in main.
 package main
 
 import (
