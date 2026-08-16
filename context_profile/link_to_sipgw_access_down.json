@@ -1,0 +1,40 @@
+{
+    "name": "link_to_peer_sipgw_access_down_0001",
+    "description": "Context for the SIPGW Access Link Down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_SIPGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "link_side": [
+                "ACCESS"
+            ]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_sip_access"
+        ],
+        "link": [
+            {
+                "src_path": "ims.vdu_sb_sip_access",
+                "dst_path": "remote.sipa_peer"
+            }
+        ],
+        "configuration": [
+            {
+                "path": "remote.sipa_peer.peer_1",
+                "key": "icmp_state",
+                "url": "http://api/v1/remote.sipa_peer.peer_1/icmp_state"
+            },
+            {
+                "path": "remote.sipa_peer.peer_1",
+                "key": "sip_options_state",
+                "url": "http://api/v1/remote.sipa_peer.peer_1/sip_options_state"
+            }
+        ]
+    }
+}

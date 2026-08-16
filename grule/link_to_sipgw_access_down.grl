@@ -1,0 +1,52 @@
+rule SIPGWAccessIPLinkDown "The IP path to the remote access peer is down" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(Ctx.Alert.SourcePath(), "remote.sipa_peer") &&
+        Ctx.Probe.PingFails("remote.sipa_peer.peer_1")
+    then
+        Result.Assert(
+            "SIPGW_ACCESS_IP_LINK_DOWN",
+            "PRIMARY",
+            "IP connectivity from the SIP GW Access VM to the remote peer is lost"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "Ping to the remote access peer fails: escalate to the transmission team to check the physical path and the routing"
+        );
+}
+
+rule SIPGWAccessSIPLinkDown "The remote access peer does not answer SIP OPTIONS" salience 90 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(Ctx.Alert.SourcePath(), "remote.sipa_peer") &&
+        Ctx.Probe.PingAnswers("remote.sipa_peer.peer_1") &&
+        Ctx.Probe.SIPOptionsFails("remote.sipa_peer.peer_1")
+    then
+        Result.Assert(
+            "SIPGW_ACCESS_SIP_LINK_DOWN",
+            "PRIMARY",
+            "The remote access peer is reachable over IP but does not answer SIP OPTIONS"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "IP is reachable but SIP OPTIONS is unanswered: ask the peer operator to check the remote SIP configuration and port"
+        );
+}
+
+rule SIPGWAccessPeerServiceUp "Both peer probes succeed while the access link alert is active" salience 80 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(Ctx.Alert.SourcePath(), "remote.sipa_peer") &&
+        Ctx.Probe.PingAnswers("remote.sipa_peer.peer_1") &&
+        Ctx.Probe.SIPOptionsAnswers("remote.sipa_peer.peer_1")
+    then
+        Result.Assert(
+            "SIPGW_ACCESS_LINK_FLAPPING",
+            "SUSPECTED",
+            "Both the IP and the SIP OPTIONS probe to the remote peer succeed; the access link alert looks transient or stale"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "Both probes succeed: ask the NOC to confirm the alert is stale and to watch the access link for flapping before clearing it"
+        );
+}

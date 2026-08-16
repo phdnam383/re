@@ -1,0 +1,39 @@
+{
+    "name": "ram_overloaded_0001",
+    "description": "Context for the RAM Overloaded",
+    "selector": {
+        "probable_causes": [
+            "RAM_OVERLOAD"
+        ],
+        "alert_types": [
+            "QUALITY_OF_SERVICE_ALERT"
+        ]
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ],
+        "configuration": [
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "cfg_log_file_count",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/cfg_log_file_count"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "cfg_log_file_size",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/cfg_log_file_size"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "cfg_log_level",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/cfg_log_level"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "limit_memory",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/limit_memory"
+            }
+        ]
+    }
+}

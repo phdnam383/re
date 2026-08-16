@@ -1,0 +1,40 @@
+{
+    "name": "link_to_peer_diagw_peer_down_0001",
+    "description": "Context for the DIAGW remote peer server Down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_DIAGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "link_side": [
+                "PEER"
+            ]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_diameter_core"
+        ],
+        "link": [
+            {
+                "src_path": "ims.vdu_sb_diameter_core",
+                "dst_path": "remote.dia"
+            }
+        ],
+        "configuration": [
+            {
+                "path": "remote.dia.srv_1",
+                "key": "icmp_state",
+                "url": "http://api/v1/remote.dia.srv_1/icmp_state"
+            },
+            {
+                "path": "remote.dia.srv_2",
+                "key": "icmp_state",
+                "url": "http://api/v1/remote.dia.srv_2/icmp_state"
+            }
+        ]
+    }
+}

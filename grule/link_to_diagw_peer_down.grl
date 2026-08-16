@@ -1,0 +1,51 @@
+rule DIAServerPrimaryDown "The primary Diameter peer server does not answer" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Link.IsSeveredTo(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dia.srv_1") &&
+        Ctx.Probe.PingFails("remote.dia.srv_1")
+    then
+        Result.Assert(
+            "DIA_SERVER_DOWN",
+            "PRIMARY",
+            "The primary Diameter peer server does not answer ping and is unreachable from every instance of the alerting VDU"
+        );
+        Result.RecommendNotifyNOC(
+            "remote.dia.srv_1",
+            "Ping to the primary Diameter peer server fails: escalate to the transmission team to check the physical path and the routing"
+        );
+}
+
+rule DIAServerSecondaryDown "The secondary Diameter peer server does not answer" salience 90 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Link.IsSeveredTo(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dia.srv_2") &&
+        Ctx.Probe.PingFails("remote.dia.srv_2")
+    then
+        Result.Assert(
+            "DIA_SERVER_DOWN",
+            "PRIMARY",
+            "The secondary Diameter peer server does not answer ping and is unreachable from every instance of the alerting VDU"
+        );
+        Result.RecommendNotifyNOC(
+            "remote.dia.srv_2",
+            "Ping to the secondary Diameter peer server fails: escalate to the transmission team to check the physical path and the routing"
+        );
+}
+
+rule DIAServersReachable "Every Diameter peer server answers ping while the link alert is active" salience 80 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dia") &&
+        Ctx.Probe.PingAnswers("remote.dia.srv_1") &&
+        Ctx.Probe.PingAnswers("remote.dia.srv_2")
+    then
+        Result.Assert(
+            "DIA_SERVER_LINK_FLAPPING",
+            "SUSPECTED",
+            "Every Diameter peer server answers ping; the Diameter peer link alert looks transient or stale"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "Both Diameter peer servers answer ping: ask the NOC to confirm the alert is stale and to watch the peer link for flapping before clearing it"
+        );
+}

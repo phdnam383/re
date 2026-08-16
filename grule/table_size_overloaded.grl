@@ -1,0 +1,33 @@
+rule SIPGWTransactionGarbageTimerTableFull "The transaction garbage timer table is near its size limit" salience 100 {
+    when
+        Ctx.Alert.HasCause("SIPGW_TRANSACTION_GARBAGE_TIMER_SIZE") &&
+        Ctx.Table.FillRatio(Ctx.Alert.SourcePath(), "transaction_garbage_timer") >= 0.9
+    then
+        Result.Assert(
+            "TABLE_SIZE_OVERLOAD",
+            "PRIMARY",
+            "The transaction garbage timer table has reached its configured size limit"
+        );
+        Result.RecommendPurgeOldestRows(
+            Ctx.Alert.SourcePath(),
+            "transaction_garbage_timer",
+            Ctx.Table.RowsAbove(Ctx.Alert.SourcePath(), "transaction_garbage_timer", 0.8)
+        );
+}
+
+rule SIPGWTCPConnsManagementTableFull "The TCP connection management temporary table is near its size limit" salience 90 {
+    when
+        Ctx.Alert.HasCause("SIPGW_TCP_CONNS_MANAGEMENT_TB_TMP_SIZE") &&
+        Ctx.Table.FillRatio(Ctx.Alert.SourcePath(), "tcp_conns_management_tb_tmp") >= 0.9
+    then
+        Result.Assert(
+            "TABLE_SIZE_OVERLOAD",
+            "PRIMARY",
+            "The TCP connection management temporary table has reached its configured size limit"
+        );
+        Result.RecommendPurgeOldestRows(
+            Ctx.Alert.SourcePath(),
+            "tcp_conns_management_tb_tmp",
+            Ctx.Table.RowsAbove(Ctx.Alert.SourcePath(), "tcp_conns_management_tb_tmp", 0.8)
+        );
+}

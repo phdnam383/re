@@ -1,0 +1,52 @@
+rule RAMOverloadLogFileCount "Too many log files are held in memory" salience 100 {
+    when
+        Ctx.Alert.HasCause("RAM_OVERLOAD") &&
+        Ctx.Cfg.LogFootprintRatio(Ctx.Alert.SourcePath()) >= 0.2 &&
+        Ctx.Cfg.LogFileCount(Ctx.Alert.SourcePath()) >= 10.0
+    then
+        Result.Assert(
+            "HIGH_LOG_FILE_COUNT_CONFIG",
+            "PRIMARY",
+            "cfg_log_file_count keeps too many log files in memory for the configured memory limit"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_file_count",
+            5
+        );
+}
+
+rule RAMOverloadLogFileSize "Each log file is too large to hold in memory" salience 90 {
+    when
+        Ctx.Alert.HasCause("RAM_OVERLOAD") &&
+        Ctx.Cfg.LogFootprintRatio(Ctx.Alert.SourcePath()) >= 0.2 &&
+        Ctx.Cfg.LogFileSizeMB(Ctx.Alert.SourcePath()) >= 100.0
+    then
+        Result.Assert(
+            "HIGH_LOG_FILE_SIZE_CONFIG",
+            "PRIMARY",
+            "cfg_log_file_size makes each log file too large for the configured memory limit"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_file_size",
+            50
+        );
+}
+
+rule RAMOverloadVerboseLogLevel "The log level is verbose enough to inflate log volume" salience 80 {
+    when
+        Ctx.Alert.HasCause("RAM_OVERLOAD") &&
+        Ctx.Cfg.IsLogVerbose(Ctx.Alert.SourcePath())
+    then
+        Result.Assert(
+            "VERBOSE_LOG_LEVEL_CONFIG",
+            "CONTRIBUTING",
+            "cfg_log_level is DEBUG or TRACE, which inflates log volume and RAM consumption"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_level",
+            "INFO"
+        );
+}

@@ -1,0 +1,18 @@
+rule SBLogicDown "The SB logic component is unavailable" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_LOGIC_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_sb_logic"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_logic")
+    then
+        Result.Assert(
+            "SB_LOGIC_DOWN",
+            "PRIMARY",
+            "SB logic component is unavailable"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")
+        );
+}

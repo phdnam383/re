@@ -1,0 +1,24 @@
+{
+    "name": "process_queue_backlog_0001",
+    "description": "Context for the Erlang process message queue backlog",
+    "selector": {
+        "probable_causes": [
+            "MESSAGE_QUEUE_LEN"
+        ],
+        "alert_types": [
+            "PROCESSING_ERROR_ALERT"
+        ]
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ],
+        "configuration": [
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "message_queue_lens",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/message_queue_lens"
+            }
+        ]
+    }
+}

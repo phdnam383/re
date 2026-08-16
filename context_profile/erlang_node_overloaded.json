@@ -1,0 +1,51 @@
+{
+    "name": "erlang_node_overloaded_0001",
+    "description": "Context for the Erlang node resource exhaustion",
+    "selector": {
+        "probable_causes": [
+            "PROCESS_COUNT_EXCEED",
+            "PORT_COUNT",
+            "ATOM_COUNT"
+        ],
+        "alert_types": [
+            "PROCESSING_ERROR_ALERT"
+        ]
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ],
+        "configuration": [
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "process_count",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/process_count"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "process_limit",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/process_limit"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "port_count",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/port_count"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "port_limit",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/port_limit"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "atom_count",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/atom_count"
+            },
+            {
+                "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+                "key": "atom_limit",
+                "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/atom_limit"
+            }
+        ]
+    }
+}

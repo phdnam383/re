@@ -1,0 +1,31 @@
+rule TCPConnWorkerQueueBacklog "The tcp_conn_worker process is not draining its message queue" salience 100 {
+    when
+        Ctx.Alert.HasCause("MESSAGE_QUEUE_LEN") &&
+        Ctx.Proc.QueueLen(Ctx.Alert.SourcePath(), "tcp_conn_worker") >= 1000
+    then
+        Result.Assert(
+            "PROCESS_QUEUE_BACKLOG",
+            "PRIMARY",
+            "The tcp_conn_worker process is not draining its message queue and can be recovered on its own"
+        );
+        Result.RecommendResetProcess(
+            Ctx.Alert.SourcePath(),
+            "tcp_conn_worker"
+        );
+}
+
+rule OtherProcessQueueBacklog "A process other than tcp_conn_worker is not draining its message queue" salience 90 {
+    when
+        Ctx.Alert.HasCause("MESSAGE_QUEUE_LEN") &&
+        Ctx.Proc.HasBacklogExcept(Ctx.Alert.SourcePath(), 1000, "tcp_conn_worker")
+    then
+        Result.Assert(
+            "PROCESS_QUEUE_BACKLOG",
+            "PRIMARY",
+            "A process other than tcp_conn_worker is not draining its message queue and cannot be reset in isolation"
+        );
+        Result.RecommendRestartVNFCFor(
+            Ctx.Alert.SourcePath(),
+            Ctx.Proc.BackloggedNamesExcept(Ctx.Alert.SourcePath(), 1000, "tcp_conn_worker")
+        );
+}

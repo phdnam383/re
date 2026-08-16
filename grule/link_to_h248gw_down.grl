@@ -1,0 +1,18 @@
+rule SBH248GWDown "The SB H248 gateway is unavailable" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_H248GW_DOWN") &&
+        Ctx.Link.IsSeveredBetween(
+            Ctx.Alert.SourcePath(),
+            "ims.vdu_sb_h248gw"
+        ) &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_h248gw")
+    then
+        Result.Assert(
+            "SB_H248GW_DOWN",
+            "PRIMARY",
+            "SB H248 gateway is unavailable"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_h248gw")
+        );
+}

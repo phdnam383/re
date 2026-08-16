@@ -1,0 +1,35 @@
+{
+    "name": "link_to_dns_server_down_0001",
+    "description": "Context for the DNS Server Down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_DNS_SERVER_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ]
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ],
+        "link": [
+            {
+                "src_path": "ims.vdu_sb_logic",
+                "dst_path": "remote.dns"
+            }
+        ],
+        "configuration": [
+            {
+                "path": "remote.dns.srv_1",
+                "key": "icmp_state",
+                "url": "http://api/v1/remote.dns.srv_1/icmp_state"
+            },
+            {
+                "path": "remote.dns.srv_2",
+                "key": "icmp_state",
+                "url": "http://api/v1/remote.dns.srv_2/icmp_state"
+            }
+        ]
+    }
+}

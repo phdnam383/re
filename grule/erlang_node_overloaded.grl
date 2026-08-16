@@ -1,0 +1,38 @@
+rule ErlangProcessCountExceeded "The Erlang node is at its process limit" salience 100 {
+    when
+        Ctx.Alert.HasCause("PROCESS_COUNT_EXCEED") &&
+        Ctx.Erl.ProcessRatio(Ctx.Alert.SourcePath()) >= 0.9
+    then
+        Result.Assert(
+            "ERLANG_RESOURCE_EXHAUSTED",
+            "PRIMARY",
+            "The Erlang node has reached its process limit and cannot spawn new processes"
+        );
+        Result.RecommendRestartVNFCAt(Ctx.Alert.SourcePath());
+}
+
+rule ErlangPortCountExceeded "The Erlang node is at its port limit" salience 90 {
+    when
+        Ctx.Alert.HasCause("PORT_COUNT") &&
+        Ctx.Erl.PortRatio(Ctx.Alert.SourcePath()) >= 0.9
+    then
+        Result.Assert(
+            "ERLANG_RESOURCE_EXHAUSTED",
+            "PRIMARY",
+            "The Erlang node has reached its port limit and cannot open new sockets"
+        );
+        Result.RecommendRestartVNFCAt(Ctx.Alert.SourcePath());
+}
+
+rule ErlangAtomCountExceeded "The Erlang node is at its atom limit" salience 80 {
+    when
+        Ctx.Alert.HasCause("ATOM_COUNT") &&
+        Ctx.Erl.AtomRatio(Ctx.Alert.SourcePath()) >= 0.9
+    then
+        Result.Assert(
+            "ERLANG_RESOURCE_EXHAUSTED",
+            "PRIMARY",
+            "The Erlang node has reached its atom limit; atoms are never reclaimed, so only a restart frees the table"
+        );
+        Result.RecommendRestartVNFCAt(Ctx.Alert.SourcePath());
+}

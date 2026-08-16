@@ -1,0 +1,40 @@
+{
+    "name": "table_size_overloaded_0001",
+    "description": "Context for the internal table size overload",
+    "selector": {
+        "probable_causes": [
+            "SIPGW_TRANSACTION_GARBAGE_TIMER_SIZE",
+            "SIPGW_TCP_CONNS_MANAGEMENT_TB_TMP_SIZE"
+        ],
+        "alert_types": [
+            "PROCESSING_ERROR_ALERT"
+        ]
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_sip_core"
+        ],
+        "configuration": [
+            {
+                "path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+                "key": "transaction_garbage_timer_rows",
+                "url": "http://api/v1/ims.vdu_sb_sip_core.vnfc_sb_sip_core_1/transaction_garbage_timer_rows"
+            },
+            {
+                "path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+                "key": "transaction_garbage_timer_max_rows",
+                "url": "http://api/v1/ims.vdu_sb_sip_core.vnfc_sb_sip_core_1/transaction_garbage_timer_max_rows"
+            },
+            {
+                "path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+                "key": "tcp_conns_management_tb_tmp_rows",
+                "url": "http://api/v1/ims.vdu_sb_sip_core.vnfc_sb_sip_core_1/tcp_conns_management_tb_tmp_rows"
+            },
+            {
+                "path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+                "key": "tcp_conns_management_tb_tmp_max_rows",
+                "url": "http://api/v1/ims.vdu_sb_sip_core.vnfc_sb_sip_core_1/tcp_conns_management_tb_tmp_max_rows"
+            }
+        ]
+    }
+}

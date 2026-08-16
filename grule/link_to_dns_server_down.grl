@@ -1,0 +1,51 @@
+rule DNSServerPrimaryDown "The primary DNS server does not answer" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_DNS_SERVER_DOWN") &&
+        Ctx.Link.IsSeveredTo(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dns.srv_1") &&
+        Ctx.Probe.PingFails("remote.dns.srv_1")
+    then
+        Result.Assert(
+            "DNS_SERVER_DOWN",
+            "PRIMARY",
+            "The primary DNS server does not answer ping and is unreachable from every instance of the alerting VDU"
+        );
+        Result.RecommendNotifyNOC(
+            "remote.dns.srv_1",
+            "Ping to the primary DNS server fails: escalate to the DNS operations team to check the server and its network path"
+        );
+}
+
+rule DNSServerSecondaryDown "The secondary DNS server does not answer" salience 90 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_DNS_SERVER_DOWN") &&
+        Ctx.Link.IsSeveredTo(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dns.srv_2") &&
+        Ctx.Probe.PingFails("remote.dns.srv_2")
+    then
+        Result.Assert(
+            "DNS_SERVER_DOWN",
+            "PRIMARY",
+            "The secondary DNS server does not answer ping and is unreachable from every instance of the alerting VDU"
+        );
+        Result.RecommendNotifyNOC(
+            "remote.dns.srv_2",
+            "Ping to the secondary DNS server fails: escalate to the DNS operations team to check the server and its network path"
+        );
+}
+
+rule DNSServersReachable "Every DNS server answers ping while the link alert is active" salience 80 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_DNS_SERVER_DOWN") &&
+        Ctx.Link.IsSeveredBetween(Ctx.Vnfc.Parent(Ctx.Alert.SourcePath()), "remote.dns") &&
+        Ctx.Probe.PingAnswers("remote.dns.srv_1") &&
+        Ctx.Probe.PingAnswers("remote.dns.srv_2")
+    then
+        Result.Assert(
+            "DNS_SERVER_LINK_FLAPPING",
+            "SUSPECTED",
+            "Every DNS server answers ping; the DNS link alert looks transient or stale"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "Both DNS servers answer ping: ask the NOC to confirm the alert is stale and to watch the resolver link for flapping before clearing it"
+        );
+}
