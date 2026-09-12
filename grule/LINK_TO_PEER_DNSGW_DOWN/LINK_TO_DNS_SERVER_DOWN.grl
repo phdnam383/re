@@ -1,0 +1,12 @@
+rule DNSServerUnreachable "The DNS server cannot be reached" salience 80 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_DNSGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_cs_dns" &&
+        Ctx.Link.PingToRemoteFailed()
+    then
+        Result.Assert(
+            "PEER_DNS_SERVER_UNREACHABLE",
+            "PRIMARY",
+            "the DNS server does not answer"
+        );
+}

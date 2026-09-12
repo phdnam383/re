@@ -1,0 +1,22 @@
+{
+    "name": "erlang_node_overloaded_0001",
+    "description": "Context for the Erlang node resource exhaustion. The process/port/atom counters ride in on the alert's additional_information, so the profile collects no external context for them.",
+    "selector": {
+        "probable_causes": [
+            "PROCESS_COUNT_EXCEED",
+            "PORT_COUNT",
+            "ATOM_COUNT"
+        ],
+        "alert_types": [
+            "PROCESSING_ERROR_ALERT"
+        ],
+        "additional_information": {
+            "metric": [
+                "process",
+                "port",
+                "atom"
+            ]
+        }
+    },
+    "providers": {}
+}

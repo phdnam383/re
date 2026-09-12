@@ -1,0 +1,91 @@
+{
+  "input": {
+    "request_id": "req-sbc-overload-ram-concentrated-0001",
+    "incident": "inc-sbc-overload-ram-concentrated-0001",
+    "alerts": [
+      {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "source_path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+        "alert_type": "QUALITY_OF_SERVICE_ALERT",
+        "probable_cause": "OVERLOAD_RAM",
+        "perceived_severity": "MAJOR",
+        "created_at": "2026-09-07T00:01:00Z"
+      }
+    ]
+  },
+  "status": "COMPLETE",
+  "profiles": [
+    "overload_ram_0001"
+  ],
+  "vdus": [
+    {
+      "path": "ims.vdu_sb_logic",
+      "name": "sb_logic",
+      "instances": 1
+    }
+  ],
+  "vnfcs": [
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+      "vdu_path": "ims.vdu_sb_logic",
+      "name": "vnfc_sb_logic_1",
+      "status": "RUNNING"
+    }
+  ],
+  "configuration": [
+    {
+      "key": "limit_memory",
+      "value": 4096,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "key": "log_file_count",
+      "value": 5,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "key": "log_file_size",
+      "value": 20,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "key": "log_level",
+      "value": "INFO",
+      "read_at": "2026-09-07T00:01:05Z"
+    }
+  ],
+  "links": [],
+  "metrics": [
+    {
+      "name": "pm_binfold_duration",
+      "value": 10,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "name": "pm_binmem_concentration",
+      "value": 0.75,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "name": "pm_binmem_holders_16m",
+      "value": 2,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "name": "pm_mem_growth_total",
+      "value": 10,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "name": "pm_mem_slope_binary",
+      "value": 8,
+      "read_at": "2026-09-07T00:01:05Z"
+    },
+    {
+      "name": "pm_mem_slope_processes",
+      "value": 524288,
+      "read_at": "2026-09-07T00:01:05Z"
+    }
+  ],
+  "built_at": "2026-09-07T00:01:10Z"
+}

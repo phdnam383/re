@@ -1,0 +1,20 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "SIPGW_DOWN",
+      "role": "PRIMARY",
+      "summary": "the peer is reachable and the I-CSCF path is intact, but a certain VNFC within the SIPGW logic component is not running",
+      "components": [
+        {
+          "entity": "ims.vdu_cs_logic.vnfc_cs_logic_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_logic.vnfc_cs_logic_1",
+            "op": "REPLACE"
+          }
+        }
+      ]
+    }
+  ]
+}

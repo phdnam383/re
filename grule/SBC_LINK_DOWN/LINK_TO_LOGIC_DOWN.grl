@@ -1,0 +1,19 @@
+rule SBLogicDown "The SB logic component is unavailable in the SBC subsystem" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_LOGIC_DOWN")    &&
+        (Ctx.Alert.VduPath() == "ims.vdu_sb_dns"    ||
+         Ctx.Alert.VduPath() == "ims.vdu_sb_dia"    ||
+         Ctx.Alert.VduPath() == "ims.vdu_sb_sipgw"  ||
+         Ctx.Alert.VduPath() == "ims.vdu_sb_h248gw" ||
+         Ctx.Alert.VduPath() == "ims.vdu_sb_dbgw")  &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_logic")
+    then
+        Result.Assert(
+            "SB_LOGIC_DOWN",
+            "PRIMARY",
+            "SB logic component is unavailable in the SBC subsystem"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_logic")
+        );
+}

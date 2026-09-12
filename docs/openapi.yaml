@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: Rule Management API
+  version: 1.0.0
+  description: |
+    Manage PostgreSQL rca_rule definitions. GRL is compiled before create/update,
+    but is not executed during validation. Changes apply to subsequent engine rule
+    loads; analyses already running may finish with the previous definition.
+    PATCH detects changes between its database read and write and returns 409;
+    it does not detect a stale copy held by the client before the request.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/rules:
+    post:
+      summary: Create a rule
+      operationId: createRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RuleInput'
+                - required: [name, rule_content]
+      responses:
+        '201':
+          description: Rule created; enabled defaults to true, salience to 0.
+          headers:
+            Location:
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Rule'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/Internal'}
+    get:
+      summary: List rules ordered by salience descending, name and ID ascending
+      operationId: listRules
+      parameters:
+        - in: query
+          name: enabled
+          schema: {type: boolean}
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+        - in: query
+          name: offset
+          schema: {type: integer, minimum: 0, default: 0}
+      responses:
+        '200':
+          description: Page of rules, including disabled rules when no filter is supplied.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, limit, offset]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Rule'}
+                  total: {type: integer, format: int64}
+                  limit: {type: integer}
+                  offset: {type: integer}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '500': {$ref: '#/components/responses/Internal'}
+  /api/v1/rules/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      summary: Get a rule
+      operationId: getRule
+      responses:
+        '200': {$ref: '#/components/responses/Rule'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/Internal'}
+    patch:
+      summary: Update supplied fields of a rule
+      operationId: updateRule
+      description: |
+        Omitted fields remain unchanged. Null and unknown fields are rejected.
+        Supply enabled=false to disable, salience=0 to reset priority, or
+        description="" to clear the description. At least one field is required.
+        The complete merged rule is validated before saving.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuleInput'}
+      responses:
+        '200': {$ref: '#/components/responses/Rule'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/Internal'}
+    delete:
+      summary: Permanently delete a rule
+      operationId: deleteRule
+      responses:
+        '204': {description: Rule deleted; no response body.}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/Internal'}
+components:
+  schemas:
+    RuleInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, description: Nonblank name; surrounding whitespace is trimmed.}
+        description: {type: string}
+        rule_content:
+          type: string
+          minLength: 1
+          description: Valid GRL containing at least one rule; maximum 1 MiB UTF-8 bytes.
+        salience: {type: integer, format: int32}
+        enabled: {type: boolean}
+    Rule:
+      type: object
+      required: [id, name, description, rule_content, salience, enabled, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string}
+        rule_content: {type: string}
+        salience: {type: integer, format: int32}
+        enabled: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+  responses:
+    Rule:
+      description: Rule definition and management metadata.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Rule'}
+    Invalid:
+      description: Invalid JSON, fields, query, UUID or GRL. JSON body limit is 8 MiB.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: Rule does not exist.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: Duplicate name or concurrent update; read the rule again before retrying.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Internal:
+      description: Internal error.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}

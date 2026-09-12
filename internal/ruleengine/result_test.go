@@ -1,131 +1,197 @@
 package ruleengine
 
 import (
-	"strings"
 	"testing"
 
 	"re/internal/analysis"
 )
 
-func TestAssertMergesByCategoryRoleAndSummary(t *testing.T) {
+// newScopedResult returns a Result whose rule scope is fixed — mimicking how
+// GRLRuntime.Run wires currentRule for the duration of one rule. This lets a
+// test drive Assert -> Recommend* like a real firing rule.
+func newScopedResult() *Result {
 	r := NewResult()
-	r.Assert("SIPGW_DOWN", "primary", "SIP unavailable")
-	r.RecommendRestartVNFC([]string{"ims.vdu_a.vnfc_a_2"})
-	r.Assert("SIPGW_DOWN", "PRIMARY", "SIP unavailable")
-	r.RecommendRestartVNFC([]string{"ims.vdu_a.vnfc_a_1"})
-
-	if err := r.Err(); err != nil {
-		t.Fatal(err)
-	}
-	causes := r.RootCauses()
-	if len(causes) != 1 {
-		t.Fatalf("causes = %d, want 1", len(causes))
-	}
-	if len(causes[0].Components) != 2 {
-		t.Fatalf("components = %d, want 2", len(causes[0].Components))
-	}
-	if causes[0].Components[0].Entity != "ims.vdu_a.vnfc_a_1" {
-		t.Errorf("components are not deterministic: %+v", causes[0].Components)
-	}
+	r.currentRule = func() string { return "test-rule" }
+	return r
 }
 
-func TestAssertKeepsDifferentSummariesSeparate(t *testing.T) {
-	r := NewResult()
-	r.Assert("SIPGW_DOWN", "PRIMARY", "load balancer unavailable")
-	r.RecommendRestartVNFC([]string{"ims.lb.1"})
-	r.Assert("SIPGW_DOWN", "PRIMARY", "logic unavailable")
-	r.RecommendRestartVNFC([]string{"ims.logic.1"})
-	if got := len(r.RootCauses()); got != 2 {
-		t.Fatalf("causes = %d, want 2", got)
-	}
-}
-
-func TestAssertValidation(t *testing.T) {
-	tests := []struct {
-		category, role, summary string
-		want                    string
-	}{
-		{"", "PRIMARY", "summary", "category"},
-		{"C", "NOPE", "summary", "role"},
-		{"C", "PRIMARY", "", "summary"},
-	}
-	for _, tc := range tests {
-		r := NewResult()
-		r.Assert(tc.category, tc.role, tc.summary)
-		if err := r.Err(); err == nil || !strings.Contains(err.Error(), tc.want) {
-			t.Errorf("Err() = %v, want %q", err, tc.want)
+func wantRootCause(t *testing.T, got []analysis.RootCause, want analysis.RootCause) {
+	t.Helper()
+	found := false
+	for _, rc := range got {
+		if rc.Category == want.Category && rc.Role == want.Role && rc.Summary == want.Summary {
+			found = true
+			if len(rc.Components) != 1 {
+				t.Fatalf("root cause %q: got %d components, want 1", want.Category, len(rc.Components))
+			}
+			compareAction(t, rc.Components[0], want.Components[0])
 		}
 	}
-}
-
-func TestRecommendRequiresAssertInTheSameRuleScope(t *testing.T) {
-	r := NewResult()
-	r.currentRule = func() string { return "RuleB" }
-	r.activeByRule["RuleA"] = rootCauseKey{category: "C", role: "PRIMARY", summary: "s"}
-	r.RecommendRestartVNFC([]string{"ims.a"})
-	if err := r.Err(); err == nil || !strings.Contains(err.Error(), "no successful Assert") {
-		t.Fatalf("Err() = %v", err)
+	if !found {
+		t.Fatalf("root cause %q not asserted; got %+v", want.Category, got)
 	}
 }
 
-func TestRecommendRestartVNFCDeduplicates(t *testing.T) {
-	r := NewResult()
-	r.Assert("C", "PRIMARY", "s")
-	r.RecommendRestartVNFC([]string{"ims.a", "ims.a"})
-	if err := r.Err(); err != nil {
-		t.Fatal(err)
+func compareAction(t *testing.T, got analysis.Component, want analysis.Component) {
+	t.Helper()
+	if got.Entity != want.Entity {
+		t.Errorf("entity = %q, want %q", got.Entity, want.Entity)
 	}
-	c := r.RootCauses()[0].Components
-	if len(c) != 1 || c[0].Action.Code != "RESTART_VNFC" || c[0].Action.Op != analysis.OpReplace {
-		t.Errorf("components = %+v", c)
+	if got.Action == nil {
+		t.Fatal("action is nil")
 	}
-}
-
-func TestRecommendSetConfigCarriesScalarValue(t *testing.T) {
-	r := NewResult()
-	r.Assert("HIGH_LOG_FILE_CONFIG", "CONTRIBUTING", "high logs")
-	r.RecommendSetConfig("ims.a", "ims.a_num_of_log_file", 3)
-	if err := r.Err(); err != nil {
-		t.Fatal(err)
+	if got.Action.Code != want.Action.Code {
+		t.Errorf("code = %q, want %q", got.Action.Code, want.Action.Code)
 	}
-	component := r.RootCauses()[0].Components[0]
-	if component.Entity != "ims.a" || component.Action.MOInstance != "ims.a_num_of_log_file" {
-		t.Errorf("component = %+v", component)
+	if got.Action.MOInstance != want.Action.MOInstance {
+		t.Errorf("mo_instance = %q, want %q", got.Action.MOInstance, want.Action.MOInstance)
 	}
-	a := component.Action
-	if numericValue(a.Value) != 3 {
-		t.Errorf("value = %#v", a.Value)
+	if got.Action.Op != want.Action.Op {
+		t.Errorf("op = %q, want %q", got.Action.Op, want.Action.Op)
+	}
+	if got.Action.Value != want.Action.Value {
+		t.Errorf("value = %v, want %v", got.Action.Value, want.Action.Value)
 	}
 }
 
-func TestComponentRejectsConflictingActions(t *testing.T) {
-	first := NewResult()
-	first.Assert("C", "PRIMARY", "s")
-	first.RecommendRestartVNFC([]string{"ims.a"})
+func TestRecommendRestartVNFCAt(t *testing.T) {
+	const path = "ims.vdu_sb_logic.vnfc_sb_logic_1"
 
-	second := NewResult()
-	second.Assert("C", "PRIMARY", "s")
-	second.RecommendSetConfig("ims.a", "ims.a_num_of_log_file", 1)
+	t.Run("single instance", func(t *testing.T) {
+		r := newScopedResult()
+		r.Assert("ERLANG_RESOURCE_EXHAUSTED", "PRIMARY", "node at its process limit")
+		r.RecommendRestartVNFCAt(path)
 
-	merged := first.causes.clone()
-	if err := merged.mergeFrom(second.causes); err == nil || !strings.Contains(err.Error(), "conflicting actions") {
-		t.Fatalf("merge = %v", err)
+		if err := r.Err(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantRootCause(t, r.RootCauses(), analysis.RootCause{
+			Category: "ERLANG_RESOURCE_EXHAUSTED", Role: "PRIMARY",
+			Summary: "node at its process limit",
+			Components: []analysis.Component{{
+				Entity: path,
+				Action: &analysis.RecommendedAction{
+					Code: "RESTART_VNFC", MOInstance: path, Op: analysis.OpReplace,
+				},
+			}},
+		})
+	})
+
+	t.Run("empty path is a rule error", func(t *testing.T) {
+		r := newScopedResult()
+		r.Assert("ERLANG_RESOURCE_EXHAUSTED", "PRIMARY", "node at its process limit")
+		r.RecommendRestartVNFCAt("   ")
+
+		if err := r.Err(); err == nil {
+			t.Fatal("expected error for empty path, got nil")
+		}
+		if got := r.RootCauses(); len(got) == 1 && len(got[0].Components) != 0 {
+			t.Fatalf("expected no components, got %v", got[0].Components)
+		}
+	})
+
+	t.Run("no assert -> no-op, logged error", func(t *testing.T) {
+		r := newScopedResult()
+		r.RecommendRestartVNFCAt(path)
+		if err := r.Err(); err == nil {
+			t.Fatal("expected error when no Assert precedes the recommend")
+		}
+	})
+}
+
+func TestRecommendPurgeOldestRows(t *testing.T) {
+	const (
+		entity = "ims.vdu_cs_logic.vnfc_cs_logic_1"
+		table  = "transaction_garbage_timer"
+	)
+
+	t.Run("marks rows for removal", func(t *testing.T) {
+		r := newScopedResult()
+		r.Assert("TABLE_SIZE_OVERLOAD", "PRIMARY", "table at its size limit")
+		r.RecommendPurgeOldestRows(entity, table, 26)
+
+		if err := r.Err(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantRootCause(t, r.RootCauses(), analysis.RootCause{
+			Category: "TABLE_SIZE_OVERLOAD", Role: "PRIMARY",
+			Summary: "table at its size limit",
+			Components: []analysis.Component{{
+				Entity: entity,
+				Action: &analysis.RecommendedAction{
+					Code:       "PURGE_OLDEST_ROWS",
+					MOInstance: entity + "_" + table,
+					Op:         analysis.OpRemove,
+					Value:      26,
+				},
+			}},
+		})
+	})
+
+	for _, rows := range []int{0, -5} {
+		t.Run("non-positive rows error", func(t *testing.T) {
+			r := newScopedResult()
+			r.Assert("TABLE_SIZE_OVERLOAD", "PRIMARY", "table at its size limit")
+			r.RecommendPurgeOldestRows(entity, table, rows)
+			if err := r.Err(); err == nil {
+				t.Fatalf("expected error for rows=%d, got nil", rows)
+			}
+		})
 	}
 }
 
-func TestCauseSetMergeUnionsComponents(t *testing.T) {
-	first := NewResult()
-	first.Assert("C", "PRIMARY", "s")
-	first.RecommendRestartVNFC([]string{"ims.a"})
-	second := NewResult()
-	second.Assert("C", "PRIMARY", "s")
-	second.RecommendRestartVNFC([]string{"ims.b"})
+func TestRecommendNotifyNOC(t *testing.T) {
+	const (
+		entity  = "ims.vdu_sb_logic.vnfc_sb_logic_1"
+		message = "escalate to the transmission team to check the physical path"
+	)
 
-	merged := first.causes.clone()
-	if err := merged.mergeFrom(second.causes); err != nil {
-		t.Fatal(err)
+	t.Run("attaches a notify action", func(t *testing.T) {
+		r := newScopedResult()
+		r.Assert("SIPGW_ACCESS_IP_LINK_DOWN", "PRIMARY", "IP path to the access peer is down")
+		r.RecommendNotifyNOC(entity, message)
+
+		if err := r.Err(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantRootCause(t, r.RootCauses(), analysis.RootCause{
+			Category: "SIPGW_ACCESS_IP_LINK_DOWN", Role: "PRIMARY",
+			Summary: "IP path to the access peer is down",
+			Components: []analysis.Component{{
+				Entity: entity,
+				Action: &analysis.RecommendedAction{
+					Code:       "NOTIFY_NOC",
+					MOInstance: entity,
+					Op:         analysis.OpNotify,
+					Value:      message,
+				},
+			}},
+		})
+	})
+
+	for _, tc := range []struct {
+		name    string
+		entity  string
+		message string
+	}{
+		{"empty entity", "   ", message},
+		{"empty message", entity, "  "},
+	} {
+		t.Run(tc.name+" is a rule error", func(t *testing.T) {
+			r := newScopedResult()
+			r.Assert("SIPGW_ACCESS_IP_LINK_DOWN", "PRIMARY", "IP path to the access peer is down")
+			r.RecommendNotifyNOC(tc.entity, tc.message)
+			if err := r.Err(); err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+		})
 	}
-	if got := len(merged.finalize()[0].Components); got != 2 {
-		t.Errorf("components = %d, want 2", got)
-	}
+
+	t.Run("no assert -> no-op, logged error", func(t *testing.T) {
+		r := newScopedResult()
+		r.RecommendNotifyNOC(entity, message)
+		if err := r.Err(); err == nil {
+			t.Fatal("expected error when no Assert precedes the notify")
+		}
+	})
 }

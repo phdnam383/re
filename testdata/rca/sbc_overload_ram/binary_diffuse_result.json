@@ -1,0 +1,11 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "REFC_BINARY_RETENTION_DIFFUSE",
+      "role": "PRIMARY",
+      "summary": "refc binary memory is retained across a worker population; no single process is at fault",
+      "components": []
+    }
+  ]
+}

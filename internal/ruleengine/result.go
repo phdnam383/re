@@ -10,16 +10,10 @@ import (
 	"re/internal/analysis"
 )
 
-// Result is the GRL-facing output accumulator for one rca_rule document.
-// Assert selects a root cause for the currently firing GRL rule; a specialised
-// Recommend method then adds components and actions to that assertion.
 type Result struct {
 	causes *causeSet
 	errs   []error
 
-	// Both callbacks are installed by the GRL runtime for the duration of one
-	// execution. currentRule scopes Assert/Recommend association so one GRL
-	// rule can never attach an action to another rule's assertion.
 	retract      func()
 	currentRule  func() string
 	activeByRule map[string]rootCauseKey
@@ -32,8 +26,6 @@ func NewResult() *Result {
 	}
 }
 
-// Assert creates or selects a root cause. Identity is the complete public
-// claim: category + role + summary.
 func (r *Result) Assert(category, role, summary string) {
 	if r.retract != nil {
 		r.retract()
@@ -54,8 +46,6 @@ func (r *Result) Assert(category, role, summary string) {
 	r.activeByRule[r.ruleScope()] = key
 }
 
-// RecommendRestartVNFC adds one component per terminated VNFC path and gives
-// each component the standard restart action.
 func (r *Result) RecommendRestartVNFC(paths []string) {
 	key, ok := r.activeCause("RESTART_VNFC")
 	if !ok {
@@ -81,10 +71,6 @@ func (r *Result) RecommendRestartVNFC(paths []string) {
 	}
 }
 
-// RecommendSetConfig adds a configuration action for one component. Entity
-// identifies the affected component, while the managed-object instance fully
-// identifies the setting being changed. Value carries only the replacement
-// value.
 func (r *Result) RecommendSetConfig(entity, moInstance string, value any) {
 	key, ok := r.activeCause("SET_CONFIG")
 	if !ok {
@@ -99,6 +85,88 @@ func (r *Result) RecommendSetConfig(entity, moInstance string, value any) {
 			MOInstance: moInstance,
 			Op:         analysis.OpReplace,
 			Value:      value,
+		},
+	}
+	if err := r.causes.addComponent(key, component); err != nil {
+		r.errs = append(r.errs, err)
+	}
+}
+
+func (r *Result) RecommendRestartVNFCAt(path string) {
+	key, ok := r.activeCause("RESTART_VNFC")
+	if !ok {
+		return
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		r.errs = append(r.errs, errors.New("RESTART_VNFC: path is empty"))
+		return
+	}
+	component := analysis.Component{
+		Entity: path,
+		Action: &analysis.RecommendedAction{
+			Code:       "RESTART_VNFC",
+			MOInstance: path,
+			Op:         analysis.OpReplace,
+		},
+	}
+	if err := r.causes.addComponent(key, component); err != nil {
+		r.errs = append(r.errs, err)
+	}
+}
+
+func (r *Result) RecommendPurgeOldestRows(entity, table string, rows int) {
+	key, ok := r.activeCause("PURGE_OLDEST_ROWS")
+	if !ok {
+		return
+	}
+	entity = strings.TrimSpace(entity)
+	table = strings.TrimSpace(table)
+	if rows <= 0 {
+		r.errs = append(r.errs, fmt.Errorf("PURGE_OLDEST_ROWS: rows %d must be greater than zero", rows))
+		return
+	}
+	component := analysis.Component{
+		Entity: entity,
+		Action: &analysis.RecommendedAction{
+			Code:       "PURGE_OLDEST_ROWS",
+			MOInstance: entity + "_" + table,
+			Op:         analysis.OpRemove,
+			Value:      rows,
+		},
+	}
+	if err := r.causes.addComponent(key, component); err != nil {
+		r.errs = append(r.errs, err)
+	}
+}
+
+// RecommendNotifyNOC escalates an issue to the NOC rather than remediating it.
+// The action carries no remediation op — it is purely an instruction to a
+// human — so it uses OpNotify. Both the entity (the managed-object path the
+// notice concerns) and the message must be non-empty: an empty message leaves
+// the operator with nothing to act on.
+func (r *Result) RecommendNotifyNOC(entity, message string) {
+	key, ok := r.activeCause("NOTIFY_NOC")
+	if !ok {
+		return
+	}
+	entity = strings.TrimSpace(entity)
+	message = strings.TrimSpace(message)
+	if entity == "" {
+		r.errs = append(r.errs, errors.New("NOTIFY_NOC: entity is empty"))
+		return
+	}
+	if message == "" {
+		r.errs = append(r.errs, errors.New("NOTIFY_NOC: message is empty"))
+		return
+	}
+	component := analysis.Component{
+		Entity: entity,
+		Action: &analysis.RecommendedAction{
+			Code:       "NOTIFY_NOC",
+			MOInstance: entity,
+			Op:         analysis.OpNotify,
+			Value:      message,
 		},
 	}
 	if err := r.causes.addComponent(key, component); err != nil {
@@ -135,6 +203,7 @@ var validOps = map[string]bool{
 	analysis.OpAdd:     true,
 	analysis.OpRemove:  true,
 	analysis.OpReplace: true,
+	analysis.OpNotify:  true,
 }
 
 func validateRootCause(c analysis.RootCause) error {

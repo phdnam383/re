@@ -1,0 +1,20 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "SIPGW_DOWN",
+      "role": "PRIMARY",
+      "summary": "the I-CSCF load balancer has no running VNFC, so SIP traffic cannot leave this node",
+      "components": [
+        {
+          "entity": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+            "op": "REPLACE"
+          }
+        }
+      ]
+    }
+  ]
+}

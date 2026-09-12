@@ -1,0 +1,20 @@
+{
+    "name": "ram_overloaded_0001",
+    "description": "Context for RAM overload. The rules read the alerting instance's logging and memory configuration to decide whether held log files, oversized log files, or a verbose log level are pushing memory past its limit. No probe or metric is needed — the decision rests on effective configuration.",
+    "selector": {
+        "probable_causes": [
+            "RAM_OVERLOAD"
+        ],
+        "alert_types": [
+            "QUALITY_OF_SERVICE_ALERT"
+        ]
+    },
+    "providers": {
+        "configuration": [
+            "log_file_count",
+            "log_file_size",
+            "log_level",
+            "limit_memory"
+        ]
+    }
+}

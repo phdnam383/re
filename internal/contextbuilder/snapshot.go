@@ -6,40 +6,27 @@ import (
 	"re/internal/analysis"
 )
 
-// assemble merges the provider results into the snapshot.
-//
-// The merge order is fixed at VDU → LINK → CONFIGURATION and every collection
-// is then sorted, so two builds over the same data with the same clock
-// serialise to identical bytes. That is a property of the contract rather than
-// of the implementation: the snapshot is what the golden fixtures pin, and a
-// collection whose order depended on which provider answered first would make
-// every one of them flaky.
 func (b *Builder) assemble(in analysis.ContextInput, plan Plan, res providerResults) analysis.ContextSnapshot {
 	snap := analysis.ContextSnapshot{
 		Input:    in,
 		Profiles: plan.Profiles,
 
-		// Non-nil even when empty: an absent collection and an empty one are
-		// the same fact here, and `[]` keeps the serialised shape stable
-		// whether or not a profile asked for that provider.
 		VDUs:          orEmpty(res.vdu.VDUs),
 		VNFCs:         orEmpty(res.vdu.VNFCs),
-		Links:         orEmpty(res.link.Links),
 		Configuration: orEmpty(res.configuration.Entries),
+		Links:         orEmpty(res.link.Entries),
+		Metrics:       orEmpty(res.metric.Entries),
 
 		BuiltAt: b.clock.Now().UTC(),
 	}
 
 	snap.MissingContext = append(snap.MissingContext, res.vdu.Missing...)
-	snap.MissingContext = append(snap.MissingContext, res.link.Missing...)
 	snap.MissingContext = append(snap.MissingContext, res.configuration.Missing...)
+	snap.MissingContext = append(snap.MissingContext, res.link.Missing...)
+	snap.MissingContext = append(snap.MissingContext, res.metric.Missing...)
 
 	sortSnapshot(&snap)
 
-	// Any gap at all is PARTIAL. There is no notion of a tolerated provider:
-	// a profile named every target explicitly, so nothing in the plan is
-	// incidental and a caller is better placed than the builder to decide
-	// whether a particular gap matters to it.
 	snap.Status = analysis.StatusComplete
 	if len(snap.MissingContext) > 0 {
 		snap.Status = analysis.StatusPartial
@@ -50,7 +37,6 @@ func (b *Builder) assemble(in analysis.ContextInput, plan Plan, res providerResu
 func sortSnapshot(snap *analysis.ContextSnapshot) {
 	sort.Strings(snap.Profiles)
 
-	// Paths are primary keys, so path order is a total order for both.
 	sort.Slice(snap.VDUs, func(i, j int) bool {
 		return snap.VDUs[i].Path < snap.VDUs[j].Path
 	})
@@ -58,28 +44,19 @@ func sortSnapshot(snap *analysis.ContextSnapshot) {
 		return snap.VNFCs[i].Path < snap.VNFCs[j].Path
 	})
 
+	sort.Slice(snap.Configuration, func(i, j int) bool {
+		return snap.Configuration[i].Key < snap.Configuration[j].Key
+	})
+
 	sort.Slice(snap.Links, func(i, j int) bool {
 		a, b := snap.Links[i], snap.Links[j]
-		if a.SrcPath != b.SrcPath {
-			return a.SrcPath < b.SrcPath
-		}
-		return a.DstPath < b.DstPath
+		return a.Target < b.Target
 	})
 
-	sort.Slice(snap.Configuration, func(i, j int) bool {
-		a, b := snap.Configuration[i], snap.Configuration[j]
-		if a.Path != b.Path {
-			return a.Path < b.Path
-		}
-		if a.Key != b.Key {
-			return a.Key < b.Key
-		}
-		return a.URL < b.URL
+	sort.Slice(snap.Metrics, func(i, j int) bool {
+		return snap.Metrics[i].Name < snap.Metrics[j].Name
 	})
 
-	// Provider first, so the missing list reads in the same VDU → LINK →
-	// CONFIGURATION order the collections above do; then entity and key, which
-	// are unique within a provider because the plan deduplicated the targets.
 	sort.Slice(snap.MissingContext, func(i, j int) bool {
 		a, b := snap.MissingContext[i], snap.MissingContext[j]
 		if ra, rb := providerRank(a.Provider), providerRank(b.Provider); ra != rb {
@@ -92,19 +69,18 @@ func sortSnapshot(snap *analysis.ContextSnapshot) {
 	})
 }
 
-// providerRank fixes the provider ordering. Unknown providers sort last rather
-// than panicking: this ordering is presentation, and a future provider that
-// forgot to register here should look out of place, not take a request down.
 func providerRank(provider string) int {
 	switch provider {
 	case analysis.ProviderVDU:
 		return 0
-	case analysis.ProviderLink:
+	case analysis.ProviderMetric:
 		return 1
 	case analysis.ProviderConfiguration:
 		return 2
-	default:
+	case analysis.ProviderLink:
 		return 3
+	default:
+		return 4
 	}
 }
 

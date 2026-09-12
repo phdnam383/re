@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: re-secret
+  namespace: ifm
+type: Opaque
+stringData:
+  DATABASE_URL: "postgres://re_user:123@pg-cluster-rw.ifm.svc.cluster.local:5432/re"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: re-config
+  namespace: ifm
+data:
+  RE_HTTP_ADDR: ":8080"
+  RE_CONFIGURATION_BASE_URL: "http://prf.ifm.svc.cluster.local:80/api/v1/config"
+  RE_PROBE_BASE_URL: "http://prf.ifm.svc.cluster.local:80/api/v1/probe/ping"
+  RE_VDU_BASE_URL: "http://prf.ifm.svc.cluster.local:80/api/v1/vdus"
+  RE_METRIC_BASE_URL: "http://pmf.ifm.svc.cluster.local:80/api/v1/metrics"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rule-engine
+  namespace: ifm
+  labels:
+    app.kubernetes.io/name: rule-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rule-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rule-engine
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: engine
+          image: docker-registry:4000/rule-engine:v1.0
+          imagePullPolicy: Always
+          ports:
+            - name: grpc
+              containerPort: 50053
+            - name: http
+              containerPort: 8080
+          env:
+            - name: RE_GRPC_ADDR
+              value: ":50053"
+            - name: RE_CONFIGURATION_TIMEOUT
+              value: "2s"
+            - name: RE_RCA_RULE_TIMEOUT
+              value: "800ms"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: re-secret
+                  key: DATABASE_URL
+          envFrom:
+            - configMapRef:
+                name: re-config
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 15
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-engine-nodeport
+  namespace: ifm
+  labels:
+    app.kubernetes.io/name: rule-engine
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: rule-engine
+  ports:
+    - name: grpc
+      port: 50053
+      targetPort: grpc
+      nodePort: 30053
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-engine
+  namespace: ifm
+  labels:
+    app.kubernetes.io/name: rule-engine
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: grpc
+    port: 50053
+    protocol: TCP
+    targetPort: grpc
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: rule-engine
+  type: ClusterIP

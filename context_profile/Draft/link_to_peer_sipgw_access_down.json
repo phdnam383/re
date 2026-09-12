@@ -1,0 +1,29 @@
+{
+    "name": "link_to_peer_sipgw_access_down_0001",
+    "description": "Context for the SIP GW Access link down. Adds the remote peer VDU for the link-evidence check and the ping/SIP-OPTIONS probes the rules use to tell an IP outage (unreachable) from a SIP outage (reachable but not answering).",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_SIPGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": []
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_sip_core",
+            "ims.vdu_cs_loadbalancer_icscf",
+            "ims.vdu_cs_sip_icscf",
+            "ims.vdu_cs_logic",
+            "remote.sipa_peer"
+        ],
+        "link": [
+            {
+                "target": "remote.sipa_peer.peer_1"
+            }
+        ]
+    }
+}

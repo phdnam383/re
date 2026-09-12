@@ -1,0 +1,23 @@
+{
+    "name": "link_to_peer_sipgw_down_0001",
+    "description": "Context for the link to sipi down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_SIPGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": ["ims.vdu_cs_loadbalancer_icscf"]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_sip_core",
+            "ims.vdu_cs_loadbalancer_icscf",
+            "ims.vdu_cs_sip_icscf",
+            "ims.vdu_cs_logic"
+        ]
+    }
+}

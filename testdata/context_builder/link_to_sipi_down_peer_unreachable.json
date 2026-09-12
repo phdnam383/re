@@ -1,0 +1,71 @@
+{
+  "input": {
+    "request_id": "req-link-to-sipi-down-peer-unreachable-0001",
+    "incident": "inc-link-to-sipi-down-peer-unreachable-0001",
+    "alerts": [
+      {
+        "id": "30000000-0000-4000-8000-000000000002",
+        "source_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+        "alert_type": "COMMUNICATIONS_ALERT",
+        "probable_cause": "LINK_TO_PEER_SIPGW_DOWN",
+        "perceived_severity": "CRITICAL",
+        "created_at": "2026-09-07T00:05:00Z",
+        "additional_information": {
+          "dst_path": "ims.vdu_cs_loadbalancer_icscf",
+          "remote_ip": "10.55.70.37"
+        }
+      }
+    ]
+  },
+  "status": "COMPLETE",
+  "profiles": [
+    "link_to_peer_sipgw_down_0001"
+  ],
+  "vdus": [
+    {
+      "path": "ims.vdu_cs_loadbalancer_icscf",
+      "name": "cs_loadbalancer_icscf",
+      "instances": 1
+    },
+    {
+      "path": "ims.vdu_cs_sip_icscf",
+      "name": "cs_sip_icscf",
+      "instances": 1
+    },
+    {
+      "path": "ims.vdu_sb_sip_core",
+      "name": "sb_sip_core",
+      "instances": 1
+    }
+  ],
+  "vnfcs": [
+    {
+      "path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
+      "vdu_path": "ims.vdu_cs_loadbalancer_icscf",
+      "name": "vnfc_cs_loadbalancer_icscf_1",
+      "status": "RUNNING"
+    },
+    {
+      "path": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+      "vdu_path": "ims.vdu_cs_sip_icscf",
+      "name": "vnfc_cs_sip_icscf_1",
+      "status": "TERMINATED"
+    },
+    {
+      "path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
+      "vdu_path": "ims.vdu_sb_sip_core",
+      "name": "vnfc_sb_sip_core_1",
+      "status": "RUNNING"
+    }
+  ],
+  "configuration": [],
+  "links": [
+    {
+      "target": "10.55.70.37",
+      "status": "UNREACHABLE",
+      "read_at": "2026-09-07T00:05:05Z"
+    }
+  ],
+  "metrics": [],
+  "built_at": "2026-09-07T00:05:10Z"
+}

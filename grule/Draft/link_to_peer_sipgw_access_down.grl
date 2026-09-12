@@ -1,0 +1,31 @@
+rule SIPGWAccessIPLinkDown "The IP path to the remote access peer is down" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.PingFails("remote.sipa_peer.peer_1")
+    then
+        Result.Assert(
+            "SIPGW_ACCESS_IP_LINK_DOWN",
+            "PRIMARY",
+            "IP connectivity from the SIP GW Access VM to the remote peer is lost"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "Ping to the remote access peer fails: escalate to the transmission team to check the physical path and the routing"
+        );
+}
+
+rule SIPGWAccessPeerServiceUp "The remote access peer answers ping while the access link alert is active" salience 80 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Link.PingAnswers("remote.sipa_peer.peer_1")
+    then
+        Result.Assert(
+            "SIPGW_ACCESS_LINK_FLAPPING",
+            "SUSPECTED",
+            "The remote access peer answers ping; the access link alert looks transient or stale"
+        );
+        Result.RecommendNotifyNOC(
+            Ctx.Alert.SourcePath(),
+            "The peer answers ping: ask the NOC to confirm the alert is stale and to watch the access link for flapping before clearing it"
+        );
+}

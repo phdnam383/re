@@ -1,0 +1,18 @@
+{
+    "name": "link_to_peer_sipgw_down_0002",
+    "description": "Context for the link to mgcf down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_SIPGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "remote_ip": []
+        }
+    },
+    "providers": {
+        "link": []
+    }
+}

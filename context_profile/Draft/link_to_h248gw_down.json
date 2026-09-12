@@ -1,0 +1,21 @@
+{
+    "name": "link_to_h248gw_down_0001",
+    "description": "Context for the link to the SB H248 gateway down. Carries the alerting peer VDU and the H248 gateway VDU whose VNFCs go unavailable when the link is severed.",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_H248GW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": ["ims.vdu_sb_h248gw"]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_sip_core",
+            "ims.vdu_sb_h248gw"
+        ]
+    }
+}

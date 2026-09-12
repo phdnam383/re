@@ -46,12 +46,8 @@
       "type": "SIPGW",
       "namespace": "dev-sb",
       "workload": "Deployment",
-      "replicas": 1,
+      "instances": 1,
       "selector": "app=cs-lb-icscf",
-      "nf_config": {
-        "listen_port": 5060,
-        "protocol": "SIP"
-      },
       "updated_at": "2026-06-18T00:00:00Z"
     },
     {
@@ -60,11 +56,8 @@
       "type": "LOGIC",
       "namespace": "dev-sb",
       "workload": "StatefulSet",
-      "replicas": 1,
+      "instances": 1,
       "selector": "app=cs-logic",
-      "nf_config": {
-        "role": "CALL_CONTROL"
-      },
       "updated_at": "2026-06-18T00:00:00Z"
     },
     {
@@ -73,12 +66,8 @@
       "type": "SIPGW",
       "namespace": "dev-sb",
       "workload": "StatefulSet",
-      "replicas": 1,
+      "instances": 1,
       "selector": "app=cs-sip-icscf",
-      "nf_config": {
-        "role": "I-CSCF",
-        "sip_port": 5060
-      },
       "updated_at": "2026-06-18T00:00:00Z"
     },
     {
@@ -87,12 +76,8 @@
       "type": "SIPGW",
       "namespace": "dev-sb",
       "workload": "StatefulSet",
-      "replicas": 2,
+      "instances": 2,
       "selector": "app=sb-sip-core",
-      "nf_config": {
-        "sip_port": 5060,
-        "transport": "TCP"
-      },
       "updated_at": "2026-06-18T00:00:00Z"
     }
   ],
@@ -102,10 +87,6 @@
       "vdu_path": "ims.vdu_cs_loadbalancer_icscf",
       "name": "vnfc_cs_loadbalancer_icscf_1",
       "status": "TERMINATED",
-      "instance_config": {
-        "failure_reason": "SIP health check failed",
-        "ip": "10.55.70.37"
-      },
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
     },
@@ -114,10 +95,6 @@
       "vdu_path": "ims.vdu_cs_logic",
       "name": "vnfc_cs_logic_1",
       "status": "TERMINATED",
-      "instance_config": {
-        "failure_reason": "Process exited",
-        "ip": "10.55.70.39"
-      },
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
     },
@@ -126,10 +103,6 @@
       "vdu_path": "ims.vdu_cs_sip_icscf",
       "name": "vnfc_cs_sip_icscf_1",
       "status": "TERMINATED",
-      "instance_config": {
-        "failure_reason": "Pod not ready",
-        "ip": "10.55.70.38"
-      },
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
     },
@@ -139,10 +112,6 @@
       "k8s_uid": "uid-sb-sip-core-1",
       "name": "vnfc_sb_sip_core_1",
       "status": "RUNNING",
-      "instance_config": {
-        "ip": "10.55.60.10",
-        "zone": "zone-a"
-      },
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
     },
@@ -152,32 +121,11 @@
       "k8s_uid": "uid-sb-sip-core-2",
       "name": "vnfc_sb_sip_core_2",
       "status": "RUNNING",
-      "instance_config": {
-        "ip": "10.55.60.11",
-        "zone": "zone-b"
-      },
       "created_at": "2026-06-18T00:00:00Z",
       "updated_at": "2026-06-18T00:00:00Z"
     }
   ],
-  "links": [
-    {
-      "src_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_1",
-      "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-      "protocol": "SIP",
-      "status": "DOWN",
-      "created_at": "2026-06-18T00:00:00Z",
-      "updated_at": "2026-06-18T00:00:00Z"
-    },
-    {
-      "src_path": "ims.vdu_sb_sip_core.vnfc_sb_sip_core_2",
-      "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1",
-      "protocol": "SIP",
-      "status": "DOWN",
-      "created_at": "2026-06-18T00:00:01Z",
-      "updated_at": "2026-06-18T00:00:01Z"
-    }
-  ],
+  "links": [],
   "configuration": [],
   "built_at": "2026-06-18T12:00:00Z"
 }

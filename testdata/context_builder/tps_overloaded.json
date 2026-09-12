@@ -58,7 +58,7 @@
       "type": "LOGIC",
       "namespace": "ims",
       "workload": "StatefulSet",
-      "replicas": 3,
+      "instances": 3,
       "selector": "app=sb-logic",
       "updated_at": "2026-06-18T00:00:00Z"
     }
@@ -93,9 +93,7 @@
   "links": [],
   "configuration": [
     {
-      "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
       "key": "number_of_log_file",
-      "url": "http://api/v1/ims.vdu_sb_logic.vnfc_sb_logic_1/num_of_log_file",
       "value": 5,
       "read_at": "2026-06-18T12:00:00Z"
     }

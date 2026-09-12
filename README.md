@@ -4,15 +4,16 @@ A gRPC service that answers one question: given an alert, what caused it and
 what should be done about it.
 
 ```text
-AnalyzeAlert (gRPC)
-    → Context Builder     gathers only what the operator's profiles allow
+AnalyzeAlertByRule (gRPC)
+    → Context Builder     gathers profile-selected and automatic alert-derived context
     → RCA Rule Engine     runs the operator's GRL rules over that context
-    → AnalyzeAlertResponse
+    → AlertRuleAnalysisResponse
 ```
 
-Both stages are driven by data in PostgreSQL — `context_profile` says what may
-be fetched, `rca_rule` says what may be concluded — so changing the engine's
-behaviour is a database change, not a deployment.
+Both stages are primarily driven by data in PostgreSQL — `context_profile` says
+what may be fetched and `rca_rule` says what may be concluded. The Context
+Builder can also add narrowly scoped provider work inferred from alert fields;
+currently `additional_information.remote_ip` adds a Link Provider ping.
 
 Each enabled `rca_rule` document executes exactly once over the complete
 context snapshot. Collection facts such as `Ctx.Vnfc.DownPathsInVDU(vdu)` perform
@@ -31,19 +32,50 @@ The engine reads its environment once at startup.
 
 | Variable | Required | Default | Meaning |
 |---|:---:|---:|---|
-| `RE_DB_DSN` | yes | — | PostgreSQL holding topology, context profiles and RCA rules |
+| `DATABASE_URL` | yes | — | PostgreSQL holding topology, context profiles and RCA rules |
 | `RE_GRPC_ADDR` | yes | — | Listen address, e.g. `:30051` |
-| `RE_CONFIGURATION_TIMEOUT` | no | `2s` | Timeout for one Configuration Provider `GET` |
 | `RE_RCA_RULE_TIMEOUT` | no | `800ms` | Timeout for one `rca_rule` row |
+| `RE_CONFIGURATION_TIMEOUT` | no | `2s` | Timeout for one Configuration Provider `GET` |
+| `RE_VDU_TIMEOUT` | no | `2s` | Timeout for one VDU Provider `GET` |
+| `RE_PROBE_TIMEOUT` | no | `2s` | Timeout for one ping attempt, sent to the Link Provider probe API |
+| `RE_METRIC_TIMEOUT` | no | `2s` | Timeout for one Metric Provider `GET` |
+| `RE_CONFIGURATION_BASE_URL` | no | `http://config` | Base URL for the Configuration Provider |
+| `RE_VDU_BASE_URL` | no | `http://api/v1/vdus` | Base URL for the VDU Provider |
+| `RE_PROBE_BASE_URL` | no | `http://api/v1/probe/ping` | Base URL for the Link Provider probe endpoint |
+| `RE_METRIC_BASE_URL` | no | `http://metrics` | Base URL for the Metric Provider |
 
 Durations use Go syntax (`800ms`, `2s`, `1m30s`). An unset duration takes the
 default; a value that does not parse, or is zero or negative, **fails
 startup** — an engine running a different timeout than the one configured
 would be debugged by reading the wrong number.
 
-There is no `RE_DB_DRIVER` (the driver is always `pgx`) and no base URL for the
-Configuration Provider — each `context_profile` carries the full URL of every
-value it wants read.
+For a Link Provider request, the HTTP deadline is separate from the ping
+timeout. It is calculated as `3 * RE_PROBE_TIMEOUT + 500ms`, allowing the three
+configured ping attempts to finish plus transport and response-decoding
+overhead.
+
+There is no `RE_DB_DRIVER` (the driver is always `pgx`). The base URL variables
+above are each provider's endpoint host/path; the full request URL is built at
+runtime from the base URL plus the collected target path and key. An unset base
+URL falls back to the package default shown, so they need not be set unless the
+environment points at a different NF API.
+
+Configuration profiles declare key lists, for example
+`"configuration": ["log_file_count", "log_level"]`. Each key is associated
+with the matching alert's full `source_path`. When constructing the request,
+the provider takes its first two labels: `ims.vdu_sb_logic.vnfc_sb_logic_1`
+becomes `GET <base>/ims.vdu_sb_logic.log_file_count`. Existing database
+profiles using `{path, key}` objects must be migrated to key strings when
+deploying this version.
+
+Context profile selectors optionally accept `"source_paths": ["ims.vdu_sb_logic"]`.
+Each entry must be a VDU path with exactly two labels (`<namespace>.<vdu>`);
+VNFC paths and wildcards are rejected. Matching checks the alert's top-level
+`source_path`, accepting the VDU itself and its descendants, case-insensitively.
+Multiple source paths are ORed, while source paths and the other selector fields
+must all match the same alert. Omitting `source_paths` or using an empty list
+leaves the source unrestricted. A selector containing only nonempty `source_paths`
+is valid.
 
 ## Database
 
@@ -51,8 +83,8 @@ Schema and seed are a separate deployment step. The engine never applies
 migrations; it only checks that it can connect.
 
 ```bash
-psql "$RE_DB_DSN" -f db/schema.sql
-psql "$RE_DB_DSN" -f db/seed_test.sql   # demo topology, profiles and rules
+psql "$DATABASE_URL" -f db/schema.sql
+psql "$DATABASE_URL" -f db/seed_test.sql   # demo topology, profiles and rules
 ```
 
 `db/seed_test.sql` is test data for the three shipped scenarios. It stores an
@@ -64,7 +96,7 @@ prevent.
 ## Running
 
 ```bash
-export RE_DB_DSN='postgres://user:pass@localhost:5432/re?sslmode=disable'
+export DATABASE_URL='postgres://user:pass@localhost:5432/re?sslmode=disable'
 export RE_GRPC_ADDR=':30051'
 
 go run ./cmd/engine
@@ -91,7 +123,7 @@ grpcurl -plaintext -d '{
       "dst_path": "ims.vdu_cs_loadbalancer_icscf.vnfc_cs_loadbalancer_icscf_1"
     }
   }
-}' -proto proto/engine.proto localhost:30051 mdaf.v1.RuleEngine/AnalyzeAlert
+}' -proto proto/engine.proto localhost:30051 mdaf.v1.FaultAnalysisService/AnalyzeAlertByRule
 ```
 
 Server reflection is not enabled, so `-proto proto/engine.proto` is required.
@@ -183,31 +215,47 @@ regression still passes on its own.
 
 ## Kubernetes
 
-[`deploy/k8s/`](deploy/k8s/) brings up the engine, a PostgreSQL for it to talk
-to, a Job that applies the schema, and a stub for the NF configuration API.
+[`deploy/k8s/`](deploy/k8s/) is a **throwaway test stack** — just enough to
+exercise the engine: a namespace, a PostgreSQL (schema + seed loaded on first
+start), the engine, and a dev stub for the NF configuration API. There is no
+Secret and no schema Job: DB credentials are inline env literals, and postgres
+loads `db/schema.sql` + `db/seed_test.sql` itself via `initdb`. Four numbered
+manifests, one per service, all plain `kubectl apply -f` (no kustomize); a
+[`Makefile`](Makefile) wraps the apply calls in dependency order.
 
 ```bash
-docker build -t re-engine:dev .
+make help                       # list the deploy targets
 
-kubectl kustomize deploy/k8s --load-restrictor LoadRestrictionsNone \
-  | kubectl apply -f -
-
-kubectl -n re rollout status deploy/re-engine
+make deploy-all                 # whole stack, in dependency order
+# or step by step:
+make deploy-db                  # PostgreSQL (+ the SQL ConfigMap it mounts)
+make deploy-engine              # the engine
+make deploy-config              # dev stub for the NF configuration API
 ```
 
-`kubectl apply -k` will not work here: the SQL ConfigMap is generated from
-`db/`, which is outside the kustomization directory, and only `kubectl
-kustomize` accepts `--load-restrictor`. Generating the ConfigMap from `db/`
-rather than from a copy under `deploy/` is deliberate — the schema the Job
-applies is the same file the tests apply, so there is no second copy to drift.
+The SQL ConfigMap (`deploy/k8s/10-schema-configmap.yaml`) is **generated** by
+`make gen-sql` from `db/schema.sql` + `db/seed_test.sql` and is gitignored —
+the schema postgres loads stays the same file the tests apply, so there is no
+second copy to drift. `make deploy-db` runs the generator first. The namespace
+comes from `-n` (default `ifm-rule`, set in `00-namespace.yaml`); override with
+`NS=...`.
+
+postgres mounts its data on a volatile `emptyDir`, so the DB is wiped (and
+schema + seed re-applied from scratch) on every pod start. initdb only runs on
+an *empty* data dir, so to reload after editing `db/*.sql` mid-session, delete
+the pod to recreate the volume:
+
+```bash
+make reinit-db && make deploy-db
+```
 
 Send it something:
 
 ```bash
-kubectl -n re port-forward svc/re-engine 31951:30051 &
+kubectl -n ifm-rule port-forward svc/rule-engine 50053:50053 &
 
-grpcurl -plaintext -proto proto/engine.proto -d @ 127.0.0.1:31951 \
-  mdaf.v1.RuleEngine/AnalyzeAlert < request.json
+grpcurl -plaintext -proto proto/engine.proto -d @ 127.0.0.1:50053 \
+  mdaf.v1.FaultAnalysisService/AnalyzeAlertByRule < request.json
 ```
 
 The responses for the three seeded scenarios are byte-for-byte the files in
@@ -217,9 +265,8 @@ The responses for the three seeded scenarios are byte-for-byte the files in
 
 | File | Replace with |
 |---|---|
-| `secret.yaml` | Credentials from a real secret store. The committed password is a placeholder and is in the git history — do not edit it in place and consider it handled. |
-| `postgres.yaml` | A managed PostgreSQL. This is one replica, no backups, no replication. |
-| `dev-configuration-stub.yaml` | Nothing — the real NF configuration API. The stub answers a fixture, and an engine reading a fixture instead of the NF's own configuration is the failure the Configuration Provider exists to prevent. |
+| `20-postgres.yaml` | A managed PostgreSQL. This one is single-replica, no backups, and runs the schema through `initdb` on a volatile `emptyDir` — every pod restart wipes and reseeds the DB. The DB credentials are inline env literals, not a Secret: they suit a throwaway test stack, nothing more. |
+| `40-dev-configuration-stub.yaml` | Nothing — the real NF configuration API. The stub answers a fixture, and an engine reading a fixture instead of the NF's own configuration is the failure the Configuration Provider exists to prevent. |
 
 The stub's Service is named `api` because `db/seed_test.sql` points the TPS
 profile at `http://api/v1/...`. In-cluster DNS resolves that URL to the stub,
@@ -227,15 +274,13 @@ so the seeded profile works unchanged and nothing rewrites the database.
 
 ### Notes that cost something to learn
 
-- **`runAsUser: 65532` is required, not decoration.** The image declares
-  `USER nonroot` by name, and a kubelet with `runAsNonRoot: true` cannot
-  resolve a name to a UID without running the container — so it refuses to
-  start it. The number must match the base image.
-- **Re-applying after a schema edit fails.** The generated ConfigMap name
-  carries a content hash, but the Job's name does not, and a Job spec is
-  immutable. Run `kubectl -n re delete job re-schema` first. That is left
-  explicit so a re-apply cannot silently re-run `db/seed_test.sql` over
-  whatever an operator changed.
+- **`runAsUser: 65532` must match the base image, not just be non-zero.**
+  The image runs as UID 65532 (`USER 65532:65532` in the Dockerfile) and the
+  pod sets `runAsNonRoot: true`; the UID has to match what the image expects.
+- **initdb runs once, on an empty data dir.** The data is on a volatile
+  `emptyDir`, so on every pod start the DB is recreated and schema + seed
+  re-applied. To reload after editing `db/*.sql` mid-session (when the data dir
+  already exists), delete the pod so the volume is recreated: `make reinit-db`.
 - **No health API, so the probes are TCP.** It is still a real signal: the
   engine pings PostgreSQL before it binds the port, so a pod accepting
   connections has already proved it can reach its data.

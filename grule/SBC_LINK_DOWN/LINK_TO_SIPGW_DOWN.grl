@@ -1,0 +1,15 @@
+rule SBSipgwDown "The SB SipGW component is unavailable in the SBC subsystem" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_SIPGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_sipgw")
+    then
+        Result.Assert(
+            "SB_SIPGW_DOWN",
+            "PRIMARY",
+            "SB SipGW component is unavailable in the SBC subsystem"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_sipgw")
+        );
+}

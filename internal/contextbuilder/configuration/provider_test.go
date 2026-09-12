@@ -2,341 +2,415 @@ package configuration
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"re/internal/analysis"
 	"re/internal/contextbuilder"
+	"re/internal/contextbuilder/link"
+	"re/internal/contextbuilder/metric"
+	"re/internal/contextbuilder/vdu"
+	"re/internal/ruleengine"
 )
 
-var fixedNow = time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+func TestDecodeCurrentValue(t *testing.T) {
+	cases := []struct {
+		name      string
+		body      string
+		wantValue any
+		wantErr   bool
+	}{
+		{"number", `{"currentValue":42}`, float64(42), false},
+		{"string", `{"currentValue":"INFO"}`, "INFO", false},
+		{"bool", `{"currentValue":true}`, true, false},
+		// An explicit JSON null currentValue is a value (nil), not a failure:
+		// the caller still produces an entry so Ctx.Cfg.Has stays true.
+		{"null currentValue is nil not error", `{"currentValue":null}`, nil, false},
+		{"object currentValue passes through", `{"currentValue":{"a":1}}`, map[string]any{"a": float64(1)}, false},
+		{"array currentValue passes through", `{"currentValue":[1,2]}`, []any{float64(1), float64(2)}, false},
+		// Extra descriptor fields (path, binding, valueSchema, …) are ignored.
+		{"extra fields ignored", `{"path":"x","binding":{"get":{}},"valueSchema":{"type":"number"},"currentValue":42}`, float64(42), false},
+		{"whitespace padding ok", "  {\"currentValue\":1}  ", float64(1), false},
 
-func fixedClock() contextbuilder.Clock {
-	return contextbuilder.ClockFunc(func() time.Time { return fixedNow })
-}
-
-// handlers maps a path to what the fixture API answers with.
-func newServer(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	for path, handler := range handlers {
-		mux.HandleFunc(path, handler)
+		{"missing currentValue rejected", `{"path":"x","binding":{}}`, nil, true},
+		{"not an object: bare number", `42`, nil, true},
+		{"not an object: bare string", `"x"`, nil, true},
+		{"not an object: array", `[1,2]`, nil, true},
+		{"malformed json", `{not json`, nil, true},
+		{"trailing content rejected", `{"currentValue":1}{}`, nil, true},
 	}
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return srv
-}
-
-func body(payload string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(payload))
-	}
-}
-
-func status(code int, payload string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(code)
-		w.Write([]byte(payload))
-	}
-}
-
-func target(srv *httptest.Server, key string) contextbuilder.ConfigurationTarget {
-	return contextbuilder.ConfigurationTarget{
-		Path: "ims.vdu_sb_logic.vnfc_sb_logic_1",
-		Key:  key,
-		URL:  srv.URL + "/" + key,
-	}
-}
-
-func TestFetchConfigurationValues(t *testing.T) {
-	srv := newServer(t, map[string]http.HandlerFunc{
-		"/number":  body(`5`),
-		"/string":  body(`"enabled"`),
-		"/boolean": body(`true`),
-		"/null":    body(`null`),
-		"/object":  body(`{"limit": 3, "mode": "strict"}`),
-		"/array":   body(`[1, 2, 3]`),
-		"/spaced":  body("\n  42\n "),
-	})
-
-	p := New(Options{Clock: fixedClock()})
-	targets := []contextbuilder.ConfigurationTarget{
-		target(srv, "number"), target(srv, "string"), target(srv, "boolean"),
-		target(srv, "null"), target(srv, "object"), target(srv, "array"),
-		target(srv, "spaced"),
-	}
-
-	res, err := p.FetchConfiguration(context.Background(), targets)
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if len(res.Missing) != 0 {
-		t.Fatalf("missing = %+v", res.Missing)
-	}
-	if len(res.Entries) != len(targets) {
-		t.Fatalf("entries = %d, want %d", len(res.Entries), len(targets))
-	}
-
-	want := map[string]any{
-		"number":  float64(5),
-		"string":  "enabled",
-		"boolean": true,
-		"null":    nil,
-		"object":  map[string]any{"limit": float64(3), "mode": "strict"},
-		"array":   []any{float64(1), float64(2), float64(3)},
-		"spaced":  float64(42),
-	}
-	for _, entry := range res.Entries {
-		if !reflect.DeepEqual(entry.Value, want[entry.Key]) {
-			t.Errorf("%s = %#v, want %#v", entry.Key, entry.Value, want[entry.Key])
-		}
-		if !entry.ReadAt.Equal(fixedNow) {
-			t.Errorf("%s read_at = %s, want the injected clock's %s", entry.Key, entry.ReadAt, fixedNow)
-		}
-		if entry.URL == "" || entry.Path == "" {
-			t.Errorf("%s lost its provenance: %+v", entry.Key, entry)
-		}
-	}
-}
-
-func TestFetchConfigurationFailureReasons(t *testing.T) {
-	srv := newServer(t, map[string]http.HandlerFunc{
-		"/not_found":  status(http.StatusNotFound, `{"error": "no such key"}`),
-		"/server_err": status(http.StatusInternalServerError, `{"error": "boom"}`),
-		// A valid JSON body behind a non-2xx is an error page, not a value.
-		"/error_page": status(http.StatusBadGateway, `42`),
-		"/empty":      status(http.StatusOK, ``),
-		"/whitespace": body("   \n\t "),
-		"/malformed":  body(`{oops`),
-		"/trailing":   body(`1 2`),
-		"/truncated":  body(`{"a": `),
-	})
-
-	p := New(Options{Clock: fixedClock()})
-	cases := map[string]string{
-		"not_found":  analysis.ReasonHTTPStatus,
-		"server_err": analysis.ReasonHTTPStatus,
-		"error_page": analysis.ReasonHTTPStatus,
-		"empty":      analysis.ReasonEmptyBody,
-		"whitespace": analysis.ReasonEmptyBody,
-		"malformed":  analysis.ReasonInvalidJSON,
-		"trailing":   analysis.ReasonInvalidJSON,
-		"truncated":  analysis.ReasonInvalidJSON,
-	}
-
-	var targets []contextbuilder.ConfigurationTarget
-	for key := range cases {
-		targets = append(targets, target(srv, key))
-	}
-
-	res, err := p.FetchConfiguration(context.Background(), targets)
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if len(res.Entries) != 0 {
-		t.Errorf("entries = %+v, none should have resolved", res.Entries)
-	}
-	if len(res.Missing) != len(cases) {
-		t.Fatalf("missing = %d, want %d", len(res.Missing), len(cases))
-	}
-	for _, m := range res.Missing {
-		if m.Provider != analysis.ProviderConfiguration {
-			t.Errorf("%s provider = %q", m.Key, m.Provider)
-		}
-		if m.Entity != "ims.vdu_sb_logic.vnfc_sb_logic_1" {
-			t.Errorf("%s entity = %q", m.Key, m.Entity)
-		}
-		if want := cases[m.Key]; m.Reason != want {
-			t.Errorf("%s reason = %q, want %q", m.Key, m.Reason, want)
-		}
-	}
-}
-
-func TestFetchConfigurationUnreachableHost(t *testing.T) {
-	p := New(Options{Clock: fixedClock(), Timeout: 500 * time.Millisecond})
-	// Port 0 is never listening, so this fails to dial rather than timing out.
-	res, err := p.FetchConfiguration(context.Background(), []contextbuilder.ConfigurationTarget{{
-		Path: "ims.vdu_a.vnfc_a_1", Key: "k", URL: "http://127.0.0.1:0/k",
-	}})
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonRequestFailed {
-		t.Fatalf("missing = %+v, want one REQUEST_FAILED", res.Missing)
-	}
-}
-
-func TestFetchConfigurationTimeout(t *testing.T) {
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-
-	srv := newServer(t, map[string]http.HandlerFunc{
-		"/slow": func(w http.ResponseWriter, r *http.Request) {
-			select {
-			case <-release:
-			case <-r.Context().Done():
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := decodeCurrentValue([]byte(tc.body))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("decodeCurrentValue(%q) err = nil, want non-nil", tc.body)
+				}
+				return
 			}
-		},
-		"/fast": body(`1`),
-	})
-
-	p := New(Options{Clock: fixedClock(), Timeout: 100 * time.Millisecond})
-	res, err := p.FetchConfiguration(context.Background(), []contextbuilder.ConfigurationTarget{
-		target(srv, "slow"), target(srv, "fast"),
-	})
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-
-	// Partial success: one target timing out must not cost the others.
-	if len(res.Entries) != 1 || res.Entries[0].Key != "fast" {
-		t.Errorf("entries = %+v, want the fast target only", res.Entries)
-	}
-	if len(res.Missing) != 1 || res.Missing[0].Key != "slow" || res.Missing[0].Reason != analysis.ReasonTimeout {
-		t.Errorf("missing = %+v, want one TIMEOUT for slow", res.Missing)
-	}
-}
-
-// A caller deadline shorter than the per-call timeout has to win, and it does
-// so because the call context is derived from the caller's.
-func TestFetchConfigurationCallerDeadlineWins(t *testing.T) {
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-
-	srv := newServer(t, map[string]http.HandlerFunc{
-		"/slow": func(w http.ResponseWriter, r *http.Request) {
-			select {
-			case <-release:
-			case <-r.Context().Done():
+			if err != nil {
+				t.Fatalf("decodeCurrentValue(%q) err = %v, want nil", tc.body, err)
 			}
-		},
-	})
-
-	p := New(Options{Clock: fixedClock(), Timeout: time.Hour})
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	start := time.Now()
-	res, err := p.FetchConfiguration(ctx, []contextbuilder.ConfigurationTarget{target(srv, "slow")})
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > 30*time.Second {
-		t.Fatalf("waited %s, the per-call timeout overrode the caller's deadline", elapsed)
-	}
-	if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonTimeout {
-		t.Errorf("missing = %+v", res.Missing)
+			if !equalValue(got, tc.wantValue) {
+				t.Errorf("decodeCurrentValue(%q) = %#v, want %#v", tc.body, got, tc.wantValue)
+			}
+		})
 	}
 }
 
-func TestFetchConfigurationCallerCancelled(t *testing.T) {
-	srv := newServer(t, map[string]http.HandlerFunc{"/k": body(`1`)})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	p := New(Options{Clock: fixedClock()})
-	if _, err := p.FetchConfiguration(ctx, []contextbuilder.ConfigurationTarget{target(srv, "k")}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("error = %v, want context.Canceled", err)
-	}
-}
-
-// Results follow the target order regardless of which call finishes first,
-// because each goroutine writes only its own slot.
-func TestFetchConfigurationPreservesTargetOrder(t *testing.T) {
-	var mu sync.Mutex
-	arrivals := 0
-
-	srv := newServer(t, map[string]http.HandlerFunc{
-		// The first target is deliberately the slowest, so completion order is
-		// the reverse of target order.
-		"/a": func(w http.ResponseWriter, _ *http.Request) {
-			mu.Lock()
-			arrivals++
-			mu.Unlock()
-			time.Sleep(80 * time.Millisecond)
-			w.Write([]byte(`"a"`))
-		},
-		"/b": body(`"b"`),
-		"/c": body(`"c"`),
-	})
-
-	p := New(Options{Clock: fixedClock()})
-	targets := []contextbuilder.ConfigurationTarget{target(srv, "a"), target(srv, "b"), target(srv, "c")}
-
-	res, err := p.FetchConfiguration(context.Background(), targets)
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	got := []string{res.Entries[0].Key, res.Entries[1].Key, res.Entries[2].Key}
-	if want := []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("entry order = %v, want %v", got, want)
-	}
-	if arrivals != 1 {
-		t.Errorf("slow handler was entered %d times", arrivals)
-	}
-}
-
-// Every target is fetched concurrently: a barrier that only opens once all of
-// them have arrived would never open under sequential calls.
-func TestFetchConfigurationIsConcurrent(t *testing.T) {
-	const n = 8
-
-	var wg sync.WaitGroup
-	wg.Add(n)
-	all := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(all)
-	}()
-
-	srv := newServer(t, map[string]http.HandlerFunc{})
-	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wg.Done()
-		select {
-		case <-all:
-		case <-time.After(5 * time.Second):
+// equalValue compares decoded JSON values (nil, float64, string, bool, map, slice).
+func equalValue(a, b any) bool {
+	switch bv := b.(type) {
+	case nil:
+		return a == nil
+	case float64, string, bool:
+		return a == bv
+	case map[string]any:
+		am, ok := a.(map[string]any)
+		if !ok || len(am) != len(bv) {
+			return false
 		}
-		w.Write([]byte(`1`))
-	})
-
-	var targets []contextbuilder.ConfigurationTarget
-	for i := 0; i < n; i++ {
-		targets = append(targets, target(srv, string(rune('a'+i))))
+		for k, v := range bv {
+			if !equalValue(am[k], v) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		as, ok := a.([]any)
+		if !ok || len(as) != len(bv) {
+			return false
+		}
+		for i := range bv {
+			if !equalValue(as[i], bv[i]) {
+				return false
+			}
+		}
+		return true
 	}
-
-	p := New(Options{Clock: fixedClock(), Timeout: 10 * time.Second})
-	res, err := p.FetchConfiguration(context.Background(), targets)
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if len(res.Entries) != n {
-		t.Fatalf("entries = %d, want %d; the calls did not overlap", len(res.Entries), n)
-	}
+	return false
 }
 
-func TestFetchConfigurationNoTargets(t *testing.T) {
-	p := New(Options{Clock: fixedClock()})
-	res, err := p.FetchConfiguration(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("FetchConfiguration() error = %v", err)
-	}
-	if len(res.Entries) != 0 || len(res.Missing) != 0 {
-		t.Errorf("result = %+v, want empty", res)
-	}
-}
-
-func TestNewDefaults(t *testing.T) {
+// TestNewUsesHardcodedBaseURLByDefault mirrors vdu.TestFetchVDUsUsesHardcodedBaseURLByDefault:
+// production wiring passes no base, so the package const must win.
+func TestNewUsesHardcodedBaseURLByDefault(t *testing.T) {
 	p := New(Options{})
-	if p.timeout != DefaultTimeout {
-		t.Errorf("timeout = %s, want %s", p.timeout, DefaultTimeout)
+	if p.baseURL != baseURL {
+		t.Errorf("New(Options{}).baseURL = %q, want hardcoded %q", p.baseURL, baseURL)
 	}
-	if p.client == nil || p.clock == nil {
-		t.Error("New() left a collaborator nil")
+	if baseURL != "http://config" {
+		t.Errorf("hardcoded baseURL changed to %q; update this guard", baseURL)
+	}
+}
+
+func TestFetchConfiguration(t *testing.T) {
+	// Capture the method + path the provider GETs so the request contract
+	// (GET <base>/<path>.<key>) is asserted, not just the response.
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"path":         "ims.vdu_sb_logic.vnfc_sb_logic_1.log_file_count",
+			"valueSchema":  map[string]string{"type": "number"},
+			"currentValue": 42,
+			"updatedAt":    "2026-07-31T10:20:02Z",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	p := New(Options{
+		Client:  srv.Client(),
+		Clock:   contextbuilder.ClockFunc(func() time.Time { return time.Time{} }),
+		BaseURL: srv.URL, // override the hardcoded base to point at the test server
+	})
+	path := "ims.vdu_sb_logic.vnfc_sb_logic_1"
+	key := "log_file_count"
+
+	res, err := p.FetchConfiguration(context.Background(), path, []string{key})
+	if err != nil {
+		t.Fatalf("FetchConfiguration err = %v", err)
+	}
+
+	// Configuration is a GET (unlike the link provider's POST).
+	if gotMethod != http.MethodGet {
+		t.Errorf("request method = %q, want GET", gotMethod)
+	}
+	if wantPath := "/ims.vdu_sb_logic.log_file_count"; gotPath != wantPath {
+		t.Errorf("request path = %q, want %q", gotPath, wantPath)
+	}
+
+	if len(res.Entries) != 1 || len(res.Missing) != 0 {
+		t.Fatalf("entries=%d missing=%d, want 1 entry 0 missing", len(res.Entries), len(res.Missing))
+	}
+	e := res.Entries[0]
+	if e.Value != float64(42) {
+		t.Errorf("entry Value = %#v, want float64(42) (the currentValue, not the whole body)", e.Value)
+	}
+	if e.Key != key {
+		t.Errorf("entry Key = %q, want %q", e.Key, key)
+	}
+	if !e.ReadAt.Equal(time.Time{}) {
+		t.Errorf("entry ReadAt = %v, want zero time from injected clock", e.ReadAt)
+	}
+}
+
+func TestFetchConfigurationMissingReasons(t *testing.T) {
+	clock := contextbuilder.ClockFunc(func() time.Time { return time.Time{} })
+	path := "ims.vdu_sb_logic.vnfc_sb_logic_1"
+	key := "log_file_count"
+
+	// newProvider wires an httptest.Server base; the provider receives the
+	// source path separately from the configuration keys.
+	newProvider := func(srv *httptest.Server) *Provider {
+		return New(Options{Client: srv.Client(), Clock: clock, BaseURL: srv.URL})
+	}
+	fetch := func(p *Provider) (contextbuilder.ConfigurationResult, error) {
+		return p.FetchConfiguration(context.Background(), path, []string{key})
+	}
+
+	t.Run("http status maps to HTTP_STATUS", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		p := newProvider(srv)
+		res, err := fetch(p)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonHTTPStatus {
+			t.Fatalf("missing = %+v, want one MissingContext reason=%s", res.Missing, analysis.ReasonHTTPStatus)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+
+	t.Run("malformed json maps to INVALID_JSON", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("{not json"))
+		}))
+		t.Cleanup(srv.Close)
+
+		p := newProvider(srv)
+		res, _ := fetch(p)
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonInvalidJSON {
+			t.Fatalf("missing = %+v, want reason=%s", res.Missing, analysis.ReasonInvalidJSON)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+
+	t.Run("descriptor missing currentValue maps to INVALID_JSON", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"path":"x","binding":{"get":{}}}`))
+		}))
+		t.Cleanup(srv.Close)
+
+		p := newProvider(srv)
+		res, _ := fetch(p)
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonInvalidJSON {
+			t.Fatalf("missing = %+v, want reason=%s", res.Missing, analysis.ReasonInvalidJSON)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+
+	t.Run("explicit null currentValue yields an entry, not a missing reason", func(t *testing.T) {
+		// Contract: Ctx.Cfg.Has stays true even when the JSON value is null.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"currentValue":null}`))
+		}))
+		t.Cleanup(srv.Close)
+
+		p := newProvider(srv)
+		res, err := fetch(p)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(res.Entries) != 1 || len(res.Missing) != 0 {
+			t.Fatalf("entries=%d missing=%d, want 1 entry (nil value) 0 missing", len(res.Entries), len(res.Missing))
+		}
+		if res.Entries[0].Value != nil {
+			t.Errorf("entry Value = %#v, want nil", res.Entries[0].Value)
+		}
+	})
+
+	t.Run("empty body maps to EMPTY_BODY", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(srv.Close)
+
+		p := newProvider(srv)
+		res, _ := fetch(p)
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonEmptyBody {
+			t.Fatalf("missing = %+v, want reason=%s", res.Missing, analysis.ReasonEmptyBody)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+
+	t.Run("unreachable maps to REQUEST_FAILED", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		srv.Close() // shut down so Dial fails
+
+		p := newProvider(srv)
+		res, _ := fetch(p)
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonRequestFailed {
+			t.Fatalf("missing = %+v, want reason=%s", res.Missing, analysis.ReasonRequestFailed)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+
+	t.Run("timeout maps to TIMEOUT", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(50 * time.Millisecond)
+		}))
+		t.Cleanup(srv.Close)
+
+		p := New(Options{Timeout: 5 * time.Millisecond, Client: srv.Client(), Clock: clock, BaseURL: srv.URL})
+		res, _ := fetch(p)
+		if len(res.Missing) != 1 || res.Missing[0].Reason != analysis.ReasonTimeout {
+			t.Fatalf("missing = %+v, want reason=%s", res.Missing, analysis.ReasonTimeout)
+		}
+		assertEntityKey(t, res.Missing[0], path, key)
+	})
+}
+
+func assertEntityKey(t *testing.T, m analysis.MissingContext, wantPath, wantKey string) {
+	t.Helper()
+	if m.Entity != wantPath || m.Key != wantKey {
+		t.Errorf("missing = %+v, want Entity=%q Key=%q", m, wantPath, wantKey)
+	}
+}
+
+type ramProfiles []contextbuilder.ContextProfile
+
+func (p ramProfiles) LoadEnabled(context.Context) ([]contextbuilder.ContextProfile, error) {
+	return p, nil
+}
+
+func TestRAMConfigurationFlow(t *testing.T) {
+	data, err := os.ReadFile("../../../context_profile/OVERLOAD_RAM/SBC_OVERLOAD_RAM.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Name        string
+		Description string
+		Selector    json.RawMessage
+		Providers   json.RawMessage
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := contextbuilder.DecodeProfile(document.Name, document.Description, document.Selector, document.Providers)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const source = "ims.vdu_sb_logic.vnfc_sb_logic_1"
+	const configPath = "ims.vdu_sb_logic"
+	values := map[string]any{"log_file_count": 20, "log_file_size": 100, "limit_memory": 4000, "log_level": "DEBUG"}
+	var mu sync.Mutex
+	requests := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/metrics/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"value": 0})
+			return
+		}
+		key := strings.TrimPrefix(r.URL.Path, "/api/v1/config/"+configPath+".")
+		value, ok := values[key]
+		if !ok {
+			t.Errorf("unexpected configuration URL: %s", r.URL.String())
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		requests[key]++
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"currentValue": value})
+	}))
+	defer srv.Close()
+	b, err := contextbuilder.New(contextbuilder.Options{
+		Profiles:      ramProfiles{profile},
+		Configuration: New(Options{Client: srv.Client(), BaseURL: srv.URL + "/api/v1/config"}),
+		VDU:           vdu.New(vdu.Options{BaseURL: srv.URL}),
+		Link:          link.New(link.Options{BaseURL: srv.URL}),
+		Metric:        metric.New(metric.Options{Client: srv.Client(), BaseURL: srv.URL + "/api/v1/metrics"}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := b.Build(context.Background(), analysis.ContextInput{
+		RequestID: "ram-configuration-flow",
+		Alerts:    []analysis.Alert{{SourcePath: source, ProbableCause: "OVERLOAD_RAM", AlertType: "QUALITY_OF_SERVICE_ALERT"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Status != analysis.StatusComplete || len(snap.Configuration) != 4 {
+		t.Fatalf("status = %s, configuration = %+v, missing = %+v", snap.Status, snap.Configuration, snap.MissingContext)
+	}
+	mu.Lock()
+	for key := range values {
+		if requests[key] != 1 {
+			t.Errorf("requests for %s = %d, want 1", key, requests[key])
+		}
+	}
+	mu.Unlock()
+	for _, entry := range snap.Configuration {
+		if _, ok := values[entry.Key]; !ok {
+			t.Errorf("unexpected entry: %+v", entry)
+		}
+	}
+	facts := ruleengine.NewFacts(snap)
+	if !facts.Cfg.Has(source, "log_level") || facts.Cfg.Has("ims.vdu_sb_logic.vnfc_other", "log_level") {
+		t.Fatal("configuration lookup must remain associated with the matching alert source")
+	}
+
+	// Exercise the three configuration rules from the shipped document. Metric
+	// rules in the same file are outside this configuration regression test.
+	grl, err := os.ReadFile("../../../grule/OVERLOAD_RAM/SBC_OVERLOAD_RAM.grl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := strings.Index(string(grl), "rule RAMOverloadLogFileCount")
+	if start < 0 {
+		t.Fatal("configuration rules not found")
+	}
+	session, err := ruleengine.NewGRLRuntime().Prepare(analysis.RuleDefinition{
+		ID: "ram-configuration", Name: "ram-configuration", Content: string(grl[start:]),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := ruleengine.NewResult()
+	if err := session.Run(context.Background(), facts, out); err != nil {
+		t.Fatal(err)
+	}
+	if err := out.Err(); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, cause := range out.RootCauses() {
+		got[cause.Category] = true
+	}
+	want := map[string]bool{
+		"HIGH_LOG_FILE_COUNT_CONFIG": true,
+		"HIGH_LOG_FILE_SIZE_CONFIG":  true,
+		"VERBOSE_LOG_LEVEL_CONFIG":   true,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("root cause categories = %v, want %v", got, want)
 	}
 }

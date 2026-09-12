@@ -1,0 +1,20 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "SB_LOGIC_DOWN",
+      "role": "PRIMARY",
+      "summary": "SB logic component is unavailable in the SBC subsystem",
+      "components": [
+        {
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+            "op": "REPLACE"
+          }
+        }
+      ]
+    }
+  ]
+}

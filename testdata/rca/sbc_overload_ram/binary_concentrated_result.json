@@ -1,0 +1,11 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "REFC_BINARY_RETENTION_CONCENTRATED",
+      "role": "PRIMARY",
+      "summary": "one long-lived process references most of the node's refc binary memory without collecting it",
+      "components": []
+    }
+  ]
+}

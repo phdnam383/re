@@ -1,0 +1,15 @@
+rule SBDiaDown "The SB Dia component is unavailable in the SBC subsystem" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_DIAGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_dia")
+    then
+        Result.Assert(
+            "SB_DIA_DOWN",
+            "PRIMARY",
+            "SB Dia component is unavailable in the SBC subsystem"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_dia")
+        );
+}

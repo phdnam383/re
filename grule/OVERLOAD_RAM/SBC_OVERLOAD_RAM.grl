@@ -1,0 +1,117 @@
+// -----------------------------------------------------------------------------
+// R2 - Refc binary retention - concentrated
+// -----------------------------------------------------------------------------
+rule BinaryRetentionConcentrated "A single process retains most of the node's refc binary memory" salience 100 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_RAM") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+
+        // 1. Binary memory is growing at all
+        Ctx.Metric.Value("pm_mem_slope_binary") > 0.0 &&
+
+        // 2. Binary is the bucket that owns the growth, not one of six rising together
+        (Ctx.Metric.Value("pm_mem_slope_binary") / Ctx.Metric.Value("pm_mem_growth_total")) > 0.6 &&
+
+        // 3. Process heaps are not moving, so the growth is off-heap.
+        //    MEM_FLAT = 1 MiB/min = 1048576 bytes/min
+        Ctx.Metric.AbsValue("pm_mem_slope_processes") < 1048576.0 &&
+
+        // 4. One process references most of the node's binary memory.
+        Ctx.Metric.Value("pm_binmem_concentration") > 0.5 &&
+
+        // 5. Binary fold is keeping up, so the concentration figure is current
+        Ctx.Metric.Value("pm_binfold_duration") < 45.0
+    then
+        Result.Assert(
+            "REFC_BINARY_RETENTION_CONCENTRATED",
+            "PRIMARY",
+            "one long-lived process references most of the node's refc binary memory without collecting it"
+        );
+}
+
+// -----------------------------------------------------------------------------
+// R3 - Refc binary retention - diffuse
+// -----------------------------------------------------------------------------
+rule BinaryRetentionDiffuse "A worker population is not garbage collecting often enough" salience 90 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_RAM") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+
+        // 1. Binary memory is growing
+        Ctx.Metric.Value("pm_mem_slope_binary") > 0.0 &&
+
+        // 2. Binary owns the growth
+        (Ctx.Metric.Value("pm_mem_slope_binary") / Ctx.Metric.Value(" pm_mem_growth_total")) > 0.6 &&
+
+        // 3. No single holder dominates
+        Ctx.Metric.Value("pm_binmem_concentration") < 0.2 &&
+
+        // 4. Many mid-sized holders rather than a few large ones
+        Ctx.Metric.Value("pm_binmem_holders_16m") > 10.0 &&
+
+        // 5. Binary fold is keeping up
+        Ctx.Metric.Value("pm_binfold_duration") < 45.0
+    then
+        Result.Assert(
+            "REFC_BINARY_RETENTION_DIFFUSE",
+            "PRIMARY",
+            "refc binary memory is retained across a worker population; no single process is at fault"
+        );
+}
+
+// -----------------------------------------------------------------------------
+// Configuration
+// -----------------------------------------------------------------------------
+rule RAMOverloadLogFileCount "Too many log files are held in memory" salience 100 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_RAM") &&
+        Ctx.Cfg.LogFootprintRatio(Ctx.Alert.SourcePath()) >= 0.2 &&
+        Ctx.Cfg.LogFileCount(Ctx.Alert.SourcePath()) >= 10.0
+    then
+        Result.Assert(
+            "HIGH_LOG_FILE_COUNT_CONFIG",
+            "PRIMARY",
+            "cfg_log_file_count keeps too many log files in memory for the configured memory limit"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_file_count",
+            5
+        );
+}
+
+rule RAMOverloadLogFileSize "Each log file is too large to hold in memory" salience 90 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_RAM") &&
+        Ctx.Cfg.LogFootprintRatio(Ctx.Alert.SourcePath()) >= 0.2 &&
+        Ctx.Cfg.LogFileSizeMB(Ctx.Alert.SourcePath()) >= 100.0
+    then
+        Result.Assert(
+            "HIGH_LOG_FILE_SIZE_CONFIG",
+            "PRIMARY",
+            "cfg_log_file_size makes each log file too large for the configured memory limit"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_file_size",
+            50
+        );
+}
+
+rule RAMOverloadVerboseLogLevel "The log level is verbose enough to inflate log volume" salience 80 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_RAM") &&
+        Ctx.Cfg.IsLogVerbose(Ctx.Alert.SourcePath())
+    then
+        Result.Assert(
+            "VERBOSE_LOG_LEVEL_CONFIG",
+            "CONTRIBUTING",
+            "cfg_log_level is DEBUG or TRACE, which inflates log volume and RAM consumption"
+        );
+        Result.RecommendSetConfig(
+            Ctx.Alert.SourcePath(),
+            Ctx.Alert.SourcePath() + "_cfg_log_level",
+            "INFO"
+        );
+}
+

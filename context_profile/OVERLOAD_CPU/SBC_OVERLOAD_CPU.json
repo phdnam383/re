@@ -1,0 +1,26 @@
+{
+    "name": "overload_cpu_0001",
+    "description": "Context for SB Logic CPU overload",
+    "selector": {
+        "probable_causes": [
+            "OVERLOAD_CPU"
+        ],
+        "alert_types": [
+            "QUALITY_OF_SERVICE_ALERT"
+        ],
+        "source_paths": [
+            "ims.vdu_sb_logic"
+        ]
+    },
+    "providers": {
+        "metric": [
+            "pm_sched_util",
+            "pm_msgq_max",
+            "pm_msgq_deep_count",
+            "pm_reductions_stability",
+            "pm_ctx_switch_vs_baseline",
+            "pm_sched_util",
+            "pm_node_up"
+        ]
+    }
+}

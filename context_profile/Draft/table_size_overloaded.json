@@ -1,0 +1,20 @@
+{
+    "name": "table_size_overloaded_0001",
+    "description": "Context for an in-memory table reaching its size limit. The table's current row count and its configured maximum ride in on the alert's additional_information (metric is the table name, observed_value the count, threshold_value the max), so the profile collects no external context for the table size.",
+    "selector": {
+        "probable_causes": [
+            "SIPGW_TRANSACTION_GARBAGE_TIMER_SIZE",
+            "SIPGW_TCP_CONNS_MANAGEMENT_TB_TMP_SIZE"
+        ],
+        "alert_types": [
+            "PROCESSING_ERROR_ALERT"
+        ],
+        "additional_information": {
+            "metric": [
+                "transaction_garbage_timer",
+                "tcp_conns_management_tb_tmp"
+            ]
+        }
+    },
+    "providers": {}
+}

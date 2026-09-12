@@ -1,0 +1,12 @@
+rule MGCFUnreachable "The external IMS MGCF cannot be reached" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_SIPGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_cs_sip_scscf" &&
+        Ctx.Link.PingToRemoteFailed()
+    then
+        Result.Assert(
+            "PEER_MGCF_UNREACHABLE",
+            "PRIMARY",
+            "the external IMS MGCF does not answer"
+        );
+}

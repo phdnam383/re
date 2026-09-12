@@ -1,0 +1,11 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "PEER_SIPGW_UNREACHABLE",
+      "role": "PRIMARY",
+      "summary": "every local I-CSCF VNFC is running but the peer does not answer; the fault is on the peer or in the network segment between them",
+      "components": []
+    }
+  ]
+}

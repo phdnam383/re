@@ -1,0 +1,53 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "HIGH_LOG_FILE_COUNT_CONFIG",
+      "role": "PRIMARY",
+      "summary": "cfg_log_file_count keeps too many log files in memory for the configured memory limit",
+      "components": [
+        {
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+          "action": {
+            "code": "SET_CONFIG",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1_cfg_log_file_count",
+            "op": "REPLACE",
+            "value": 5
+          }
+        }
+      ]
+    },
+    {
+      "category": "HIGH_LOG_FILE_SIZE_CONFIG",
+      "role": "PRIMARY",
+      "summary": "cfg_log_file_size makes each log file too large for the configured memory limit",
+      "components": [
+        {
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+          "action": {
+            "code": "SET_CONFIG",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1_cfg_log_file_size",
+            "op": "REPLACE",
+            "value": 50
+          }
+        }
+      ]
+    },
+    {
+      "category": "VERBOSE_LOG_LEVEL_CONFIG",
+      "role": "CONTRIBUTING",
+      "summary": "cfg_log_level is DEBUG or TRACE, which inflates log volume and RAM consumption",
+      "components": [
+        {
+          "entity": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+          "action": {
+            "code": "SET_CONFIG",
+            "mo_instance": "ims.vdu_sb_logic.vnfc_sb_logic_1_cfg_log_level",
+            "op": "REPLACE",
+            "value": "INFO"
+          }
+        }
+      ]
+    }
+  ]
+}

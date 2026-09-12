@@ -1,15 +1,17 @@
-package grpc
+﻿package grpc
 
 import (
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"re/gen/mdafv1"
 	"re/internal/analysis"
 )
 
-func requestFromPB(req *mdafv1.AnalyzeAlertRequest) analysis.ContextInput {
+func requestFromPB(req *mdafv1.AlertRuleAnalysisRequest) analysis.ContextInput {
 	if req == nil {
 		return analysis.ContextInput{}
 	}
@@ -21,12 +23,18 @@ func requestFromPB(req *mdafv1.AnalyzeAlertRequest) analysis.ContextInput {
 			AlertType:             a.GetAlertType(),
 			ProbableCause:         a.GetProbableCause(),
 			PerceivedSeverity:     a.GetPerceivedSeverity(),
-			State:                 a.GetState(),
-			CreatedAt:             a.GetCreatedAt(),
+			CreatedAt:             timestampToString(a.GetCreatedAt()),
 			AdditionalInformation: additionalInformationFromPB(a.GetAdditionalInformation()),
 		}}
 	}
 	return in
+}
+
+func timestampToString(ts *timestamppb.Timestamp) string {
+	if ts == nil || !ts.IsValid() {
+		return ""
+	}
+	return ts.AsTime().Format(time.RFC3339)
 }
 
 func additionalInformationFromPB(s *structpb.Struct) map[string]any {
@@ -36,12 +44,12 @@ func additionalInformationFromPB(s *structpb.Struct) map[string]any {
 	return s.AsMap()
 }
 
-func responseToPB(result analysis.AnalysisResult) (*mdafv1.AnalyzeAlertResponse, error) {
+func responseToPB(result analysis.AnalysisResult) (*mdafv1.AlertRuleAnalysisResponse, error) {
 	rootCauses, err := rootCausesToPB(result.RootCauses)
 	if err != nil {
 		return nil, err
 	}
-	return &mdafv1.AnalyzeAlertResponse{
+	return &mdafv1.AlertRuleAnalysisResponse{
 		RequestId: result.RequestID,
 		Status: &mdafv1.AnalysisStatus{
 			Overall: result.OverallStatus,

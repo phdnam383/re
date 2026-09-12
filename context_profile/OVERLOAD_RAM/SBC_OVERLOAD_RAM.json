@@ -1,0 +1,32 @@
+{
+    "name": "overload_ram_0001",
+    "description": "Context for RAM overload",
+    "selector": {
+        "probable_causes": [
+            "OVERLOAD_RAM"
+        ],
+        "alert_types": [
+            "QUALITY_OF_SERVICE_ALERT"
+        ],
+        "source_paths": [
+            "ims.vdu_sb_logic"
+        ]
+    },
+    "providers": {
+        "configuration": [
+            "log_file_count",
+            "log_file_size",
+            "log_level",
+            "limit_memory"
+        ],
+        "metric": [
+            "pm_mem_slope_binary",
+            "pm_mem_growth_total",
+            "pm_binmem_concentration",
+            "pm_mem_slope_processes",
+            "pm_binfold_duration",
+            "pm_binmem_holders_16m",
+            "pm_binfold_duration"
+        ]
+    }
+}

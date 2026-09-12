@@ -1,0 +1,15 @@
+rule SBH248Down "The SB H248 component is unavailable in the SBC subsystem" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_H248GW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_h248")
+    then
+        Result.Assert(
+            "SB_H248_DOWN",
+            "PRIMARY",
+            "SB H248 component is unavailable in the SBC subsystem"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_h248")
+        );
+}

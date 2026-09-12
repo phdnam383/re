@@ -6,170 +6,143 @@ import (
 	"re/internal/analysis"
 )
 
-func TestSelectorMatchesAlert(t *testing.T) {
-	alert := analysis.Alert{
-		ID:            "a1",
-		AlertType:     "QUALITY_OF_SERVICE_ALERT",
-		ProbableCause: "THRESHOLD_CROSSING",
-		AdditionalInformation: map[string]any{
-			"metric":          "overload_ram",
-			"observed_value":  93.5,
-			"threshold_value": float64(85),
-			"acknowledged":    false,
-			"cleared_at":      nil,
-		},
-	}
-
-	tests := []struct {
-		name     string
-		selector Selector
-		want     bool
+func TestMatchesValueString(t *testing.T) {
+	// A string selector matches when the value equals it or is a descendant in
+	// the path tree, case-insensitively — a VDU path matches its own VNFCs.
+	cases := []struct {
+		name      string
+		want      any
+		got       any
+		wantMatch bool
 	}{
-		{
-			name:     "probable cause matches",
-			selector: Selector{ProbableCauses: []string{"THRESHOLD_CROSSING"}},
-			want:     true,
-		},
-		{
-			name:     "probable cause is one of several",
-			selector: Selector{ProbableCauses: []string{"LINK_DOWN", "THRESHOLD_CROSSING"}},
-			want:     true,
-		},
-		{
-			name:     "probable cause misses",
-			selector: Selector{ProbableCauses: []string{"LINK_DOWN"}},
-			want:     false,
-		},
-		{
-			name:     "probable cause is case-insensitive",
-			selector: Selector{ProbableCauses: []string{"threshold_crossing"}},
-			want:     true,
-		},
-		{
-			name: "clauses are ANDed",
-			selector: Selector{
-				ProbableCauses: []string{"THRESHOLD_CROSSING"},
-				AlertTypes:     []string{"EQUIPMENT_ALERT"},
-			},
-			want: false,
-		},
-		{
-			name: "both clauses satisfied",
-			selector: Selector{
-				ProbableCauses: []string{"THRESHOLD_CROSSING"},
-				AlertTypes:     []string{"quality_of_service_alert"},
-			},
-			want: true,
-		},
-		{
-			name:     "additional information value matches case-insensitively",
-			selector: Selector{AdditionalInformation: map[string][]any{"metric": {"OVERLOAD_RAM"}}},
-			want:     true,
-		},
-		{
-			name:     "additional information value misses",
-			selector: Selector{AdditionalInformation: map[string][]any{"metric": {"overload_cpu"}}},
-			want:     false,
-		},
-		{
-			name:     "empty value list asserts key presence only",
-			selector: Selector{AdditionalInformation: map[string][]any{"observed_value": {}}},
-			want:     true,
-		},
-		{
-			name:     "absent key never matches",
-			selector: Selector{AdditionalInformation: map[string][]any{"absent": {}}},
-			want:     false,
-		},
-		{
-			name:     "keys are case-sensitive",
-			selector: Selector{AdditionalInformation: map[string][]any{"Metric": {"overload_ram"}}},
-			want:     false,
-		},
-		{
-			name:     "number matches a number",
-			selector: Selector{AdditionalInformation: map[string][]any{"threshold_value": {float64(85)}}},
-			want:     true,
-		},
-		{
-			name:     "string does not match a number",
-			selector: Selector{AdditionalInformation: map[string][]any{"threshold_value": {"85"}}},
-			want:     false,
-		},
-		{
-			name:     "number does not match a string",
-			selector: Selector{AdditionalInformation: map[string][]any{"metric": {float64(1)}}},
-			want:     false,
-		},
-		{
-			name:     "boolean matches a boolean",
-			selector: Selector{AdditionalInformation: map[string][]any{"acknowledged": {false}}},
-			want:     true,
-		},
-		{
-			name:     "boolean does not match the string form",
-			selector: Selector{AdditionalInformation: map[string][]any{"acknowledged": {"false"}}},
-			want:     false,
-		},
-		{
-			name:     "null matches a null",
-			selector: Selector{AdditionalInformation: map[string][]any{"cleared_at": {nil}}},
-			want:     true,
-		},
-		{
-			name: "values within one key are ORed",
-			selector: Selector{AdditionalInformation: map[string][]any{
-				"metric": {"overload_cpu", "overload_ram"},
-			}},
-			want: true,
-		},
-		{
-			name: "keys are ANDed",
-			selector: Selector{AdditionalInformation: map[string][]any{
-				"metric":          {"overload_ram"},
-				"threshold_value": {float64(99)},
-			}},
-			want: false,
-		},
+		{"exact case-insensitive", "ABC", "abc", true},
+		{"exact mismatch", "ABC", "abd", false},
+		{"VDU matches its VNFC", "ims.vdu_sb_h248gw", "ims.vdu_sb_h248gw.vnfc_sb_h248gw_1", true},
+		{"VDU matches itself", "ims.vdu_sb_h248gw", "ims.vdu_sb_h248gw", true},
+		{"deep descendant", "ims.vdu_cs_loadbalancer_icscf", "ims.vdu_cs_loadbalancer_icscf.vnfc_x.y", true},
+		// a sibling that merely shares a prefix is NOT a descendant
+		{"sibling prefix no dot", "ims.vdu_cs_loadbalancer_icscf", "ims.vdu_cs_loadbalancer_icscf_other", false},
+		{"non-string got", "abc", 123, false},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.selector.MatchesAlert(alert); got != tt.want {
-				t.Errorf("MatchesAlert() = %v, want %v", got, tt.want)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := matchesValue(tc.want, tc.got)
+			if got != tc.wantMatch {
+				t.Fatalf("matchesValue(%v, %v) = %v, want %v", tc.want, tc.got, got, tc.wantMatch)
 			}
 		})
 	}
 }
 
-// The conjunction is inside one alert. Two alerts that between them satisfy
-// every clause must not match — a profile describes a kind of alert, not a bag
-// of them.
-func TestSelectorConjunctionIsPerAlert(t *testing.T) {
-	selector := Selector{
-		ProbableCauses: []string{"THRESHOLD_CROSSING"},
-		AlertTypes:     []string{"QUALITY_OF_SERVICE_ALERT"},
+func TestMatchesValueWildcardAccepted(t *testing.T) {
+	// A trailing ".*" is still accepted for readability but does not change the
+	// result: a VDU path matches itself and its subtree, identical to the bare
+	// form. Listing it side by side makes the equivalence explicit.
+	base := "ims.vdu_cs_loadbalancer_icscf"
+	variants := []struct {
+		label string
+		want  string
+	}{
+		{"bare", base},
+		{"wildcard", base + ".*"},
 	}
-
-	split := []analysis.Alert{
-		{ID: "a1", ProbableCause: "THRESHOLD_CROSSING", AlertType: "EQUIPMENT_ALERT"},
-		{ID: "a2", ProbableCause: "LINK_DOWN", AlertType: "QUALITY_OF_SERVICE_ALERT"},
-	}
-	if selector.Matches(split) {
-		t.Error("clauses satisfied by different alerts must not match")
-	}
-
-	together := append(split, analysis.Alert{
-		ID: "a3", ProbableCause: "THRESHOLD_CROSSING", AlertType: "QUALITY_OF_SERVICE_ALERT",
-	})
-	if !selector.Matches(together) {
-		t.Error("one alert satisfying every clause must match")
+	for _, v := range variants {
+		t.Run(v.label+"/self", func(t *testing.T) {
+			if !matchesValue(v.want, base) {
+				t.Fatalf("matchesValue(%q, %q) = false, want true", v.want, base)
+			}
+		})
+		t.Run(v.label+"/descendant", func(t *testing.T) {
+			if !matchesValue(v.want, base+".vnfc_x") {
+				t.Fatalf("matchesValue(%q, descendant) = false, want true", v.want)
+			}
+		})
+		t.Run(v.label+"/sibling", func(t *testing.T) {
+			if matchesValue(v.want, base+"_other") {
+				t.Fatalf("matchesValue(%q, sibling) = true, want false", v.want)
+			}
+		})
 	}
 }
 
-func TestSelectorMatchesEmptyAlertList(t *testing.T) {
-	selector := Selector{ProbableCauses: []string{"THRESHOLD_CROSSING"}}
-	if selector.Matches(nil) {
-		t.Error("no alerts cannot satisfy a selector")
+func TestMatchesValueScalar(t *testing.T) {
+	// Numbers, bools and nil stay exact matches — they have no path hierarchy.
+	cases := []struct {
+		name      string
+		want      any
+		got       any
+		wantMatch bool
+	}{
+		{"number equal", float64(3), float64(3), true},
+		{"number mismatch", float64(3), float64(4), false},
+		{"bool equal", true, true, true},
+		{"bool mismatch", true, false, false},
+		{"nil equal", nil, nil, true},
+		{"nil vs string", nil, "x", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := matchesValue(tc.want, tc.got)
+			if got != tc.wantMatch {
+				t.Fatalf("matchesValue(%v, %v) = %v, want %v", tc.want, tc.got, got, tc.wantMatch)
+			}
+		})
+	}
+}
+
+func TestSourcePathsMatching(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		paths  []string
+		source string
+		match  bool
+	}{
+		{"omitted", nil, "ims.vdu_other.vnfc_1", true},
+		{"empty", []string{}, "ims.vdu_other.vnfc_1", true},
+		{"VDU itself", []string{"ims.vdu_sb_logic"}, "ims.vdu_sb_logic", true},
+		{"VNFC", []string{"ims.vdu_sb_logic"}, "ims.vdu_sb_logic.vnfc_sb_logic_1", true},
+		{"case insensitive", []string{"IMS.VDU_SB_LOGIC"}, "ims.vdu_sb_logic.vnfc_1", true},
+		{"any listed VDU", []string{"ims.vdu_sb_dns", "ims.vdu_sb_logic"}, "ims.vdu_sb_logic.vnfc_1", true},
+		{"different VDU", []string{"ims.vdu_sb_logic"}, "ims.vdu_sb_dns.vnfc_1", false},
+		{"sibling prefix", []string{"ims.vdu_sb_logic"}, "ims.vdu_sb_logic_other.vnfc_1", false},
+		{"different namespace", []string{"ims.vdu_sb_logic"}, "other.vdu_sb_logic.vnfc_1", false},
+		{"parent only", []string{"ims.vdu_sb_logic"}, "ims", false},
+		{"missing source", []string{"ims.vdu_sb_logic"}, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := Selector{ProbableCauses: []string{"OVERLOAD_CPU"}, SourcePaths: tc.paths}
+			a := analysis.Alert{
+				ProbableCause: "OVERLOAD_CPU", SourcePath: tc.source,
+				AdditionalInformation: map[string]any{"source_path": "ims.vdu_sb_logic.vnfc_1"},
+			}
+			if got := s.MatchesAlert(a); got != tc.match {
+				t.Fatalf("MatchesAlert() = %v, want %v", got, tc.match)
+			}
+		})
+	}
+}
+
+func TestSourcePathsClausesMustMatchSameAlert(t *testing.T) {
+	s := Selector{
+		SourcePaths:           []string{"ims.vdu_sb_logic"},
+		ProbableCauses:        []string{"OVERLOAD_CPU"},
+		AlertTypes:            []string{"QUALITY_OF_SERVICE_ALERT"},
+		AdditionalInformation: map[string][]any{"metric": {"cpu"}},
+	}
+	matching := analysis.Alert{
+		SourcePath: "ims.vdu_sb_logic.vnfc_1", ProbableCause: "OVERLOAD_CPU",
+		AlertType: "QUALITY_OF_SERVICE_ALERT", AdditionalInformation: map[string]any{"metric": "cpu"},
+	}
+	wrongSource, wrongCause, wrongType, wrongInfo := matching, matching, matching, matching
+	wrongSource.SourcePath = "ims.vdu_sb_dns.vnfc_1"
+	wrongCause.ProbableCause = "OVERLOAD_RAM"
+	wrongType.AlertType = "COMMUNICATIONS_ALERT"
+	wrongInfo.AdditionalInformation = map[string]any{"metric": "ram"}
+	alerts := []analysis.Alert{wrongSource, wrongCause, wrongType, wrongInfo}
+	if s.Matches(alerts) {
+		t.Fatal("clauses matching different alerts must not select the profile")
+	}
+	if !s.Matches(append(alerts, matching)) {
+		t.Fatal("one alert satisfying all clauses must select the profile")
 	}
 }

@@ -1,0 +1,52 @@
+// -----------------------------------------------------------------------------
+// C8 - Selective receive mailbox scan
+// -----------------------------------------------------------------------------
+rule SelectiveReceiveMailboxScan "A selective receive rescans a large mailbox on every iteration" salience 80 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_CPU") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+
+        // 1. Schedulers are busy
+        Ctx.Metric.Value("pm_sched_util") > 0.8 &&
+
+        // 2. A very large mailbox exists
+        Ctx.Metric.Value("pm_msgq_max") > 10000.0 &&
+
+        // 3. Only one or two processes have deep mailboxes - concentrated, not population-wide
+        Ctx.Metric.Value("pm_msgq_deep_count") <= 2.0 &&
+
+        // 4. Throughput flat despite reductions being burned
+        Ctx.Metric.AbsValue("pm_reductions_stability") < 0.02
+    then
+        Result.Assert(
+            "SELECTIVE_RECEIVE_MAILBOX_SCAN",
+            "PRIMARY",
+            "CPU is spent rescanning one deep mailbox; cost grows with the square of queue length"
+        );
+}
+
+// -----------------------------------------------------------------------------
+// C9 - Excessive context switching
+// -----------------------------------------------------------------------------
+rule ExcessiveContextSwitching "Processes yield more than they work" salience 70 {
+    when
+        Ctx.Alert.HasCause("OVERLOAD_CPU") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+
+        // 1. Switch rate anomalous against this node's own normal.
+        Ctx.Metric.Value("pm_ctx_switch_vs_baseline") > 3.0 &&
+
+        // 2. Schedulers neither idle nor saturated - the cost is in switching, not in work
+        (Ctx.Metric.Value("pm_sched_util") >= 0.4 && Ctx.Metric.Value("pm_sched_util") <= 0.7) &&
+
+        // 3. Separates a mid-range pm_sched_util from a dead scrape target.
+        Ctx.Metric.Value("pm_node_up") == 1.0
+    then
+        Result.Assert(
+            "EXCESSIVE_CONTEXT_SWITCHING",
+            "CONTRIBUTING",
+            "context switch rate is anomalous against this node's own normal; diagnostic only until a per-VNFC baseline exists"
+        );
+}
+
+

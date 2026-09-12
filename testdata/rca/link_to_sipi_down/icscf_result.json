@@ -1,0 +1,20 @@
+{
+  "status": "COMPLETE",
+  "root_causes": [
+    {
+      "category": "SIPGW_DOWN",
+      "role": "PRIMARY",
+      "summary": "the peer is reachable and the load balancer is up, but a certain VNFC within the I-CSCF's SIP component is not running",
+      "components": [
+        {
+          "entity": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+          "action": {
+            "code": "RESTART_VNFC",
+            "mo_instance": "ims.vdu_cs_sip_icscf.vnfc_cs_sip_icscf_1",
+            "op": "REPLACE"
+          }
+        }
+      ]
+    }
+  ]
+}

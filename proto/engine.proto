@@ -1,22 +1,23 @@
-syntax = "proto3";
+﻿syntax = "proto3";
 
 package mdaf.v1;
 
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "re/gen/mdafv1;mdafv1";
 
-service RuleEngine {
-  rpc AnalyzeAlert(AnalyzeAlertRequest)
-      returns (AnalyzeAlertResponse);
+service FaultAnalysisService {
+  rpc AnalyzeAlertByRule(AlertRuleAnalysisRequest)
+      returns (AlertRuleAnalysisResponse);
 }
 
-message AnalyzeAlertRequest {
+message AlertRuleAnalysisRequest {
   string request_id     = 1;
   Alert alert           = 2;
 }
 
-message AnalyzeAlertResponse {
+message AlertRuleAnalysisResponse {
   string request_id     = 1;
   AnalysisStatus status = 2;
   RootCauseAnalysis rca = 3;
@@ -29,9 +30,8 @@ message Alert {
   string alert_type         = 3;
   string probable_cause     = 4;
   string perceived_severity = 5;
-  string state              = 6;
-  string created_at         = 7;
-  google.protobuf.Struct additional_information = 8;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Struct additional_information = 7;
 }
 
 message AnalysisStatus {
@@ -46,7 +46,7 @@ message RootCauseAnalysis {
 
 message RootCause {
   string category   = 1;
-  string role       = 2; // PRIMARY | CONTRIBUTING | SUSPECTED
+  string role       = 2;
   string summary    = 3;
   repeated Component components = 4;
 }
@@ -59,7 +59,7 @@ message Component {
 message RecommendedAction {
   string code           = 1;
   string mo_instance    = 2;
-  string op             = 3; // ADD | REMOVE | REPLACE
+  string op             = 3;
   google.protobuf.Value value = 4;
 }
 

@@ -1,0 +1,59 @@
+{
+  "input": {
+    "request_id": "req-link-to-logic-down-sb-dns-0001",
+    "incident": "inc-link-to-logic-down-sb-dns-0001",
+    "alerts": [
+      {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "source_path": "ims.vdu_sb_dns.vnfc_sb_dns_1",
+        "alert_type": "COMMUNICATIONS_ALERT",
+        "probable_cause": "LINK_TO_LOGIC_DOWN",
+        "perceived_severity": "CRITICAL",
+        "created_at": "2026-09-07T00:00:00Z",
+        "additional_information": {
+          "dst_path": "ims.vdu_sb_logic"
+        }
+      }
+    ]
+  },
+  "status": "COMPLETE",
+  "profiles": [
+    "link_to_internal_vnfc_0001"
+  ],
+  "vdus": [
+    {
+      "path": "ims.vdu_sb_dns",
+      "name": "sb_dns",
+      "instances": 1
+    },
+    {
+      "path": "ims.vdu_sb_logic",
+      "name": "sb_logic",
+      "instances": 2
+    }
+  ],
+  "vnfcs": [
+    {
+      "path": "ims.vdu_sb_dns.vnfc_sb_dns_1",
+      "vdu_path": "ims.vdu_sb_dns",
+      "name": "vnfc_sb_dns_1",
+      "status": "RUNNING"
+    },
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_1",
+      "vdu_path": "ims.vdu_sb_logic",
+      "name": "vnfc_sb_logic_1",
+      "status": "RUNNING"
+    },
+    {
+      "path": "ims.vdu_sb_logic.vnfc_sb_logic_2",
+      "vdu_path": "ims.vdu_sb_logic",
+      "name": "vnfc_sb_logic_2",
+      "status": "TERMINATED"
+    }
+  ],
+  "configuration": [],
+  "links": [],
+  "metrics": [],
+  "built_at": "2026-09-07T00:00:10Z"
+}

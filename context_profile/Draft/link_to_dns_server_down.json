@@ -1,0 +1,29 @@
+{
+    "name": "link_to_dns_server_down_0001",
+    "description": "Context for the DNS server link down. Carries the VNFC VDU that raises the link alert plus the remote DNS VDU, and the ping probes against the two DNS servers the rules use to separate a real server outage from a transient link alert.",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_DNS_SERVER_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": []
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_cs_logic",
+            "remote.dns"
+        ],
+        "link": [
+            {
+                "target": "remote.dns.srv_1"
+            },
+            {
+                "target": "remote.dns.srv_2"
+            }
+        ]
+    }
+}

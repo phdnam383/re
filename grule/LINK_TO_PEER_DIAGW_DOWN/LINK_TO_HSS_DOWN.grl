@@ -1,0 +1,12 @@
+rule HSSUnreachable "The HSS cannot be reached over Diameter" salience 90 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_PEER_DIAGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_cs_dia" &&
+        Ctx.Link.PingToRemoteFailed()
+    then
+        Result.Assert(
+            "PEER_HSS_UNREACHABLE",
+            "PRIMARY",
+            "the HSS does not answer"
+        );
+}

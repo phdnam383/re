@@ -1,0 +1,18 @@
+{
+    "name": "link_to_peer_diagw_down_0001",
+    "description": "Context for the link to hss down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_PEER_DIAGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "remote_ip": []
+        }
+    },
+    "providers": {
+        "link": []
+    }
+}

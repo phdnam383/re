@@ -1,6 +1,3 @@
-// Command engine is the composition root. It reads the environment, opens the
-// database, wires the Context Builder, the RCA Rule Engine and the gRPC
-// transport together, and serves until it is asked to stop.
 package main
 
 import (
@@ -10,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,18 +19,31 @@ import (
 	"re/internal/analysis"
 	"re/internal/contextbuilder"
 	"re/internal/contextbuilder/configuration"
+	"re/internal/contextbuilder/link"
+	"re/internal/contextbuilder/metric"
 	cbpostgres "re/internal/contextbuilder/postgres"
+	"re/internal/contextbuilder/vdu"
 	"re/internal/ruleengine"
 	repostgres "re/internal/ruleengine/postgres"
+	"re/internal/rulemanagement"
+	rmpostgres "re/internal/rulemanagement/postgres"
 	transportgrpc "re/internal/transport/grpc"
+	transporthttp "re/internal/transport/http"
 )
 
 func main() {
 	const (
-		envDBDSN                = "RE_DB_DSN"
+		envDBDSN                = "DATABASE_URL"
 		envGRPCAddr             = "RE_GRPC_ADDR"
 		envConfigurationTimeout = "RE_CONFIGURATION_TIMEOUT"
+		envLinkTimeout          = "RE_PROBE_TIMEOUT"
+		envVDUTimeout           = "RE_VDU_TIMEOUT"
+		envMetricTimeout        = "RE_METRIC_TIMEOUT"
 		envRCARuleTimeout       = "RE_RCA_RULE_TIMEOUT"
+		envConfigurationBaseURL = "RE_CONFIGURATION_BASE_URL"
+		envLinkBaseURL          = "RE_PROBE_BASE_URL"
+		envVDUBaseURL           = "RE_VDU_BASE_URL"
+		envMetricBaseURL        = "RE_METRIC_BASE_URL"
 		dbDriver                = "pgx"
 		startupTimeout          = 5 * time.Second
 		shutdownGrace           = 10 * time.Second
@@ -67,6 +78,48 @@ func main() {
 		configurationTimeout = value
 	}
 
+	linkTimeout := link.DefaultTimeout
+	if raw := os.Getenv(envLinkTimeout); raw != "" {
+		value, err := time.ParseDuration(raw)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %q is not a duration: %v\n", envLinkTimeout, raw, err)
+			os.Exit(1)
+		}
+		if value <= 0 {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %v must be greater than zero\n", envLinkTimeout, value)
+			os.Exit(1)
+		}
+		linkTimeout = value
+	}
+
+	vduTimeout := vdu.DefaultTimeout
+	if raw := os.Getenv(envVDUTimeout); raw != "" {
+		value, err := time.ParseDuration(raw)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %q is not a duration: %v\n", envVDUTimeout, raw, err)
+			os.Exit(1)
+		}
+		if value <= 0 {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %v must be greater than zero\n", envVDUTimeout, value)
+			os.Exit(1)
+		}
+		vduTimeout = value
+	}
+
+	metricTimeout := metric.DefaultTimeout
+	if raw := os.Getenv(envMetricTimeout); raw != "" {
+		value, err := time.ParseDuration(raw)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %q is not a duration: %v\n", envMetricTimeout, raw, err)
+			os.Exit(1)
+		}
+		if value <= 0 {
+			fmt.Fprintf(os.Stderr, "engine: configuration: %s: %v must be greater than zero\n", envMetricTimeout, value)
+			os.Exit(1)
+		}
+		metricTimeout = value
+	}
+
 	rcaRuleTimeout := ruleengine.DefaultRuleTimeout
 	if raw := os.Getenv(envRCARuleTimeout); raw != "" {
 		value, err := time.ParseDuration(raw)
@@ -80,6 +133,11 @@ func main() {
 		}
 		rcaRuleTimeout = value
 	}
+
+	configurationBaseURL := os.Getenv(envConfigurationBaseURL)
+	linkBaseURL := os.Getenv(envLinkBaseURL)
+	vduBaseURL := os.Getenv(envVDUBaseURL)
+	metricBaseURL := os.Getenv(envMetricBaseURL)
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -101,10 +159,22 @@ func main() {
 
 	builder, err := contextbuilder.New(contextbuilder.Options{
 		Profiles: cbpostgres.NewProfileRepository(db),
-		VDU:      cbpostgres.NewVDUProvider(db),
-		Link:     cbpostgres.NewLinkProvider(db),
+		VDU: vdu.New(vdu.Options{
+			Timeout: vduTimeout,
+			BaseURL: vduBaseURL,
+		}),
 		Configuration: configuration.New(configuration.Options{
 			Timeout: configurationTimeout,
+			BaseURL: configurationBaseURL,
+		}),
+		Link: link.New(link.Options{
+			Timeout: linkTimeout,
+			BaseURL: linkBaseURL,
+			Logger:  logger,
+		}),
+		Metric: metric.New(metric.Options{
+			Timeout: metricTimeout,
+			BaseURL: metricBaseURL,
 		}),
 		Logger: logger,
 	})
@@ -155,48 +225,70 @@ func main() {
 		os.Exit(1)
 	}
 
+	httpAddr := os.Getenv("RE_HTTP_ADDR")
+	if httpAddr == "" {
+		httpAddr = ":8080"
+	}
+	httpServer := transporthttp.NewServer(httpAddr, rulemanagement.NewService(rmpostgres.NewRepository(db)), logger)
+	httpListener, err := net.Listen("tcp", httpAddr)
+	if err != nil {
+		listener.Close()
+		db.Close()
+		fmt.Fprintln(os.Stderr, "engine: listen HTTP:", err)
+		os.Exit(1)
+	}
+	logger.Info("rule management REST listening", "address", httpListener.Addr().String())
+
 	logger.Info("engine listening",
 		"address", listener.Addr().String(),
 		"configuration_timeout", configurationTimeout.String(),
+		"probe_timeout", linkTimeout.String(),
+		"vdu_timeout", vduTimeout.String(),
+		"metric_timeout", metricTimeout.String(),
 		"rca_rule_timeout", rcaRuleTimeout.String(),
 	)
 
-	served := make(chan error, 1)
+	served := make(chan error, 2)
 	go func() { served <- server.Serve(listener) }()
+	go func() { served <- httpServer.Serve(httpListener) }()
 
+	var serveErr error
+	completed := 0
 	select {
-	case err = <-served:
-		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			db.Close()
-			fmt.Fprintln(os.Stderr, "engine: serve:", err)
-			os.Exit(1)
-		}
-		return
+	case serveErr = <-served:
+		completed++
 	case <-ctx.Done():
 		logger.Info("shutdown signal received", "grace_period", shutdownGrace.String())
 	}
-
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancelShutdown()
 	stopped := make(chan struct{})
+	go func() { server.GracefulStop(); close(stopped) }()
+	httpStopped := make(chan struct{})
 	go func() {
-		server.GracefulStop()
-		close(stopped)
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			_ = httpServer.Close()
+		}
+		close(httpStopped)
 	}()
-
-	timer := time.NewTimer(shutdownGrace)
-	defer timer.Stop()
-
 	select {
 	case <-stopped:
-		logger.Info("shutdown complete")
-	case <-timer.C:
-		logger.Warn("grace period expired; forcing shutdown")
+	case <-shutdownCtx.Done():
 		server.Stop()
 		<-stopped
 	}
-
-	if err = <-served; err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+	<-httpStopped
+	for completed < 2 {
+		err := <-served
+		completed++
+		if err != nil && !errors.Is(err, grpc.ErrServerStopped) && !errors.Is(err, http.ErrServerClosed) {
+			serveErr = err
+		}
+	}
+	if serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) && !errors.Is(serveErr, http.ErrServerClosed) {
 		db.Close()
-		fmt.Fprintln(os.Stderr, "engine: serve:", err)
+		fmt.Fprintln(os.Stderr, "engine: serve:", serveErr)
 		os.Exit(1)
 	}
+	logger.Info("shutdown complete")
 }

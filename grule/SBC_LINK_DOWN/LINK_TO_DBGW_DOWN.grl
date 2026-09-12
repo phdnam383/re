@@ -1,0 +1,15 @@
+rule SBDbDown "The SB Db component is unavailable in the SBC subsystem" salience 100 {
+    when
+        Ctx.Alert.HasCause("LINK_TO_DBGW_DOWN") &&
+        Ctx.Alert.VduPath() == "ims.vdu_sb_logic" &&
+        Ctx.Vnfc.HasAnyDownInVDU("ims.vdu_sb_db")
+    then
+        Result.Assert(
+            "SB_DB_DOWN",
+            "PRIMARY",
+            "SB Db component is unavailable in the SBC subsystem"
+        );
+        Result.RecommendRestartVNFC(
+            Ctx.Vnfc.DownPathsInVDU("ims.vdu_sb_db")
+        );
+}

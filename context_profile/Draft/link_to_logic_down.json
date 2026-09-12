@@ -1,0 +1,22 @@
+{
+    "name": "link_to_logic_down_0001",
+    "description": "Context for the SB Logic Down",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_LOGIC_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": [
+                "ims.vdu_sb_logic"
+            ]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_logic"
+        ]
+    }
+}

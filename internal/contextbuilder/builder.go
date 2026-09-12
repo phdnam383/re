@@ -9,37 +9,24 @@ import (
 	"re/internal/analysis"
 )
 
-// Options are the Builder's collaborators. Every port is required except the
-// clock and the logger.
-//
-// The providers are not optional the way IAE's are. There, a provider could be
-// absent because its backend was unconfigured; here each provider's targets
-// come from a profile and its backend is either PostgreSQL or a URL the
-// profile itself supplies, so a nil provider is a wiring mistake rather than a
-// deployment choice. Failing in New says so at startup instead of degrading
-// every request to PARTIAL.
 type Options struct {
 	Profiles      ProfileRepository
 	VDU           VDUProvider
-	Link          LinkProvider
 	Configuration ConfigurationProvider
+	Link          LinkProvider
+	Metric        MetricProvider
 
-	// Clock defaults to SystemClock.
 	Clock Clock
 
-	// Logger receives provider failures. It is the only place the underlying
-	// error text survives: MissingContext carries a closed reason vocabulary
-	// so a caller can act on it, which means the transport error behind a
-	// QUERY_FAILED would otherwise be dropped entirely. Defaults to discarding.
 	Logger *slog.Logger
 }
 
-// Builder turns a request into a ContextSnapshot.
 type Builder struct {
 	profiles      ProfileRepository
 	vdu           VDUProvider
-	link          LinkProvider
 	configuration ConfigurationProvider
+	link          LinkProvider
+	metric        MetricProvider
 	clock         Clock
 	logger        *slog.Logger
 }
@@ -50,17 +37,20 @@ func New(opts Options) (*Builder, error) {
 		return nil, errors.New("contextbuilder: profile repository is required")
 	case opts.VDU == nil:
 		return nil, errors.New("contextbuilder: vdu provider is required")
-	case opts.Link == nil:
-		return nil, errors.New("contextbuilder: link provider is required")
 	case opts.Configuration == nil:
 		return nil, errors.New("contextbuilder: configuration provider is required")
+	case opts.Link == nil:
+		return nil, errors.New("contextbuilder: link provider is required")
+	case opts.Metric == nil:
+		return nil, errors.New("contextbuilder: metric provider is required")
 	}
 
 	b := &Builder{
 		profiles:      opts.Profiles,
 		vdu:           opts.VDU,
-		link:          opts.Link,
 		configuration: opts.Configuration,
+		link:          opts.Link,
+		metric:        opts.Metric,
 		clock:         opts.Clock,
 		logger:        opts.Logger,
 	}
@@ -73,19 +63,6 @@ func New(opts Options) (*Builder, error) {
 	return b, nil
 }
 
-// Build loads the enabled profiles, matches them against the request's alerts,
-// merges every match into one plan, runs the providers over it and assembles
-// the snapshot.
-//
-// Two kinds of failure are deliberately different:
-//
-//   - Returning an error means there is no snapshot. That covers a definition
-//     the engine cannot use, no matching profile, and the caller giving up
-//     (cancellation or deadline). Nothing partial is worth handing to the rule
-//     engine in those cases.
-//   - A provider coming back short returns a snapshot with StatusPartial. The
-//     other providers' results are kept and every affected target is named in
-//     MissingContext, because a tolerated gap must still be nameable.
 func (b *Builder) Build(ctx context.Context, in analysis.ContextInput) (analysis.ContextSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return analysis.ContextSnapshot{}, err
@@ -96,42 +73,34 @@ func (b *Builder) Build(ctx context.Context, in analysis.ContextInput) (analysis
 		return analysis.ContextSnapshot{}, err
 	}
 
-	// resolve validates every matched profile, so nothing reaches a provider
-	// that has not been checked. A no-match returns ErrContextProfileNotFound
-	// here and the providers are never touched.
 	plan, err := resolve(in.Alerts, profiles)
 	if err != nil {
 		return analysis.ContextSnapshot{}, err
 	}
+	plan = applyAutomaticPlan(in, plan)
 
-	results := b.runProviders(ctx, plan)
+	results := b.runProviders(ctx, alertSourcePath(in), plan)
 
-	// Cancellation outranks a degraded snapshot. Every provider will have
-	// failed once the context is done, and reporting that as PARTIAL would
-	// describe a caller who walked away as an infrastructure problem.
 	if err := ctx.Err(); err != nil {
 		return analysis.ContextSnapshot{}, err
 	}
 
-	return b.assemble(in, plan, results), nil
+	snap := b.assemble(in, plan, results)
+	b.logger.InfoContext(ctx, "context snapshot built",
+		slog.String("request_id", in.RequestID),
+		slog.String("status", snap.Status),
+		slog.Any("snapshot", snap))
+	return snap, nil
 }
 
-// providerResults is what the fan-out produces. Each goroutine writes exactly
-// one field, so the results need no mutex and the merge below is ordered by
-// the code rather than by which provider finished first.
 type providerResults struct {
 	vdu           VDUResult
-	link          LinkResult
 	configuration ConfigurationResult
+	link          LinkResult
+	metric        MetricResult
 }
 
-// runProviders runs the three providers concurrently, skipping any with no
-// targets.
-//
-// Whether a provider runs is derived from whether there is work for it, never
-// from a flag on a profile: a profile that named no links has not asked for a
-// link lookup, and issuing one anyway would report gaps nobody enquired about.
-func (b *Builder) runProviders(ctx context.Context, plan Plan) providerResults {
+func (b *Builder) runProviders(ctx context.Context, vnfcPath string, plan Plan) providerResults {
 	var (
 		out providerResults
 		wg  sync.WaitGroup
@@ -154,35 +123,18 @@ func (b *Builder) runProviders(ctx context.Context, plan Plan) providerResults {
 		}()
 	}
 
-	if len(plan.Links) > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			res, err := b.link.FetchLinks(ctx, plan.Links)
-			if err != nil {
-				b.logger.WarnContext(ctx, "link provider failed",
-					slog.String("provider", analysis.ProviderLink),
-					slog.Int("targets", len(plan.Links)),
-					slog.Any("error", err))
-				out.link = LinkResult{Missing: missingForLinks(plan.Links, analysis.ReasonQueryFailed)}
-				return
-			}
-			out.link = res
-		}()
-	}
-
 	if len(plan.Configuration) > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := b.configuration.FetchConfiguration(ctx, plan.Configuration)
+			res, err := b.configuration.FetchConfiguration(ctx, vnfcPath, plan.Configuration)
 			if err != nil {
 				b.logger.WarnContext(ctx, "configuration provider failed",
 					slog.String("provider", analysis.ProviderConfiguration),
 					slog.Int("targets", len(plan.Configuration)),
 					slog.Any("error", err))
 				out.configuration = ConfigurationResult{
-					Missing: missingForConfiguration(plan.Configuration, analysis.ReasonRequestFailed),
+					Missing: missingForConfiguration(plan.Configuration, vnfcPath, analysis.ReasonRequestFailed),
 				}
 				return
 			}
@@ -190,14 +142,47 @@ func (b *Builder) runProviders(ctx context.Context, plan Plan) providerResults {
 		}()
 	}
 
+	if len(plan.Links) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := b.link.FetchLinks(ctx, vnfcPath, plan.Links)
+			if err != nil {
+				b.logger.WarnContext(ctx, "link provider failed",
+					slog.String("provider", analysis.ProviderLink),
+					slog.Int("targets", len(plan.Links)),
+					slog.Any("error", err))
+				out.link = LinkResult{
+					Missing: missingForLinks(plan.Links, analysis.ReasonRequestFailed),
+				}
+				return
+			}
+			out.link = res
+		}()
+	}
+
+	if len(plan.Metrics) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := b.metric.FetchMetrics(ctx, vnfcPath, plan.Metrics)
+			if err != nil {
+				b.logger.WarnContext(ctx, "metric provider failed",
+					slog.String("provider", analysis.ProviderMetric),
+					slog.Int("targets", len(plan.Metrics)),
+					slog.Any("error", err))
+				out.metric = MetricResult{
+					Missing: missingForMetrics(plan.Metrics, vnfcPath, analysis.ReasonRequestFailed),
+				}
+				return
+			}
+			out.metric = res
+		}()
+	}
+
 	wg.Wait()
 	return out
 }
-
-// A provider that fails as a whole tells us nothing about any individual
-// target, so every target it was given becomes a gap. Anything it may have
-// returned alongside the error is discarded: half a result that the provider
-// itself considered failed is not something a rule should reason over.
 
 func missingForVDUs(paths []string, reason string) []analysis.MissingContext {
 	out := make([]analysis.MissingContext, 0, len(paths))
@@ -209,21 +194,38 @@ func missingForVDUs(paths []string, reason string) []analysis.MissingContext {
 	return out
 }
 
-func missingForLinks(targets []LinkTarget, reason string) []analysis.MissingContext {
-	out := make([]analysis.MissingContext, 0, len(targets))
-	for _, t := range targets {
+func missingForConfiguration(keys []string, sourcePath, reason string) []analysis.MissingContext {
+	out := make([]analysis.MissingContext, 0, len(keys))
+	for _, key := range keys {
 		out = append(out, analysis.MissingContext{
-			Provider: analysis.ProviderLink, Entity: t.Entity(), Reason: reason,
+			Provider: analysis.ProviderConfiguration, Entity: sourcePath, Key: key, Reason: reason,
 		})
 	}
 	return out
 }
 
-func missingForConfiguration(targets []ConfigurationTarget, reason string) []analysis.MissingContext {
+func alertSourcePath(in analysis.ContextInput) string {
+	if len(in.Alerts) == 0 {
+		return ""
+	}
+	return in.Alerts[0].SourcePath
+}
+
+func missingForLinks(targets []LinkTarget, reason string) []analysis.MissingContext {
 	out := make([]analysis.MissingContext, 0, len(targets))
 	for _, t := range targets {
 		out = append(out, analysis.MissingContext{
-			Provider: analysis.ProviderConfiguration, Entity: t.Path, Key: t.Key, Reason: reason,
+			Provider: analysis.ProviderLink, Entity: t.Target, Reason: reason,
+		})
+	}
+	return out
+}
+
+func missingForMetrics(names []string, vnfcPath, reason string) []analysis.MissingContext {
+	out := make([]analysis.MissingContext, 0, len(names))
+	for _, name := range names {
+		out = append(out, analysis.MissingContext{
+			Provider: analysis.ProviderMetric, Entity: vnfcPath, Key: name, Reason: reason,
 		})
 	}
 	return out

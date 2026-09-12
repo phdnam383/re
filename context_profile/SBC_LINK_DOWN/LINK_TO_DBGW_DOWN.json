@@ -1,0 +1,22 @@
+{
+    "name": "link_to_internal_vnfc_0006",
+    "description": "Context for the loss of the SB DB connection in the SBC subsystem",
+    "selector": {
+        "probable_causes": [
+            "LINK_TO_DBGW_DOWN"
+        ],
+        "alert_types": [
+            "COMMUNICATIONS_ALERT"
+        ],
+        "additional_information": {
+            "dst_path": [
+                "ims.vdu_sb_db"
+            ]
+        }
+    },
+    "providers": {
+        "vdu": [
+            "ims.vdu_sb_db"
+        ]
+    }
+}
