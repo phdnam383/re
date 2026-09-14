@@ -14,6 +14,6 @@ COPY --from=build /out/engine /engine
 COPY --from=build /src/proto /proto
 
 USER 65532:65532
-EXPOSE 50053
+EXPOSE 50053 8080
 
 ENTRYPOINT ["/engine"]
