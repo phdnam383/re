@@ -35,7 +35,7 @@ func (s *stubService) Delete(context.Context, string) error { return s.err }
 
 func TestRuleRoutes(t *testing.T) {
 	s := &stubService{}
-	h := NewServer(":0", s, nil).Handler
+	h := NewServer(":0", s, nil, nil).Handler
 	for _, tc := range []struct {
 		method, path, body string
 		status             int
@@ -90,7 +90,7 @@ func TestErrorMapping(t *testing.T) {
 	}{
 		{rulemanagement.ErrInvalid, 400}, {rulemanagement.ErrNotFound, 404}, {rulemanagement.ErrConflict, 409}, {errors.New("private database detail"), 500},
 	} {
-		h := NewServer(":0", &stubService{err: tc.err}, nil).Handler
+		h := NewServer(":0", &stubService{err: tc.err}, nil, nil).Handler
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/rules/id", nil))
 		if w.Code != tc.status {

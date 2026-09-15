@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Rule Management API
+  title: Rule and Context Profile Management API
   version: 1.0.0
   description: |
     Manage PostgreSQL rca_rule definitions. GRL is compiled before create/update,
@@ -106,8 +106,260 @@ paths:
         '400': {$ref: '#/components/responses/Invalid'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/Internal'}
+  /api/v1/context-profiles:
+    post:
+      operationId: createContextProfile
+      summary: Create context profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '#/components/schemas/ProfileInput'
+              - required:
+                - name
+                - selector
+      responses:
+        '201':
+          description: Context profile and metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextProfile'
+          headers:
+            Location:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/Internal'
+    get:
+      operationId: listContextProfiles
+      summary: List profiles ordered by name then ID
+      parameters:
+      - in: query
+        name: enabled
+        schema:
+          type: boolean
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      responses:
+        '200':
+          description: Page of context profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - total
+                - limit
+                - offset
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContextProfile'
+                  total:
+                    type: integer
+                    format: int64
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /api/v1/context-profiles/{id}:
+    parameters:
+    - in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getContextProfile
+      summary: Get context profile
+      responses:
+        '200':
+          description: Context profile and metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextProfile'
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateContextProfile
+      summary: Update profile; replace supplied selector/providers entirely
+      description: Omitted fields stay unchanged. No deep merge. providers={} clears
+        declared providers; selector={} is invalid. Conflicts detect changes between
+        the server read and write, not stale client copies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileInput'
+      responses:
+        '200':
+          description: Context profile and metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextProfile'
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/Internal'
+    delete:
+      operationId: deleteContextProfile
+      summary: Permanently delete context profile
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
 components:
   schemas:
+    ProfileSelector:
+      type: object
+      additionalProperties: false
+      description: At least one nonempty selector clause is required. Supplied selector
+        replaces the entire object.
+      properties:
+        probable_causes:
+          type: array
+          items:
+            type: string
+        alert_types:
+          type: array
+          items:
+            type: string
+        source_paths:
+          type: array
+          items:
+            type: string
+        additional_information:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              nullable: true
+              oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+    ProfileProviders:
+      type: object
+      additionalProperties: false
+      description: Supplied providers replaces the entire object. Empty object clears
+        declared providers.
+      properties:
+        vdu:
+          type: array
+          items:
+            type: string
+        configuration:
+          type: array
+          items:
+            type: string
+        metric:
+          type: array
+          items:
+            type: string
+        link:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - target
+            properties:
+              target:
+                type: string
+                minLength: 1
+    ProfileInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        selector:
+          $ref: '#/components/schemas/ProfileSelector'
+        providers:
+          $ref: '#/components/schemas/ProfileProviders'
+        enabled:
+          type: boolean
+      description: 'Top-level null fields are rejected. Maximum encoded profile JSON:
+        1 MiB; request body: 8 MiB.'
+    ContextProfile:
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - selector
+      - providers
+      - enabled
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        selector:
+          $ref: '#/components/schemas/ProfileSelector'
+        providers:
+          $ref: '#/components/schemas/ProfileProviders'
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     RuleInput:
       type: object
       additionalProperties: false

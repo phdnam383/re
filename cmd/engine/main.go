@@ -23,6 +23,8 @@ import (
 	"re/internal/contextbuilder/metric"
 	cbpostgres "re/internal/contextbuilder/postgres"
 	"re/internal/contextbuilder/vdu"
+	"re/internal/profilemanagement"
+	pmpostgres "re/internal/profilemanagement/postgres"
 	"re/internal/ruleengine"
 	repostgres "re/internal/ruleengine/postgres"
 	"re/internal/rulemanagement"
@@ -229,7 +231,7 @@ func main() {
 	if httpAddr == "" {
 		httpAddr = ":8080"
 	}
-	httpServer := transporthttp.NewServer(httpAddr, rulemanagement.NewService(rmpostgres.NewRepository(db)), logger)
+	httpServer := transporthttp.NewServer(httpAddr, rulemanagement.NewService(rmpostgres.NewRepository(db)), profilemanagement.NewService(pmpostgres.NewRepository(db)), logger)
 	httpListener, err := net.Listen("tcp", httpAddr)
 	if err != nil {
 		listener.Close()
@@ -237,7 +239,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "engine: listen HTTP:", err)
 		os.Exit(1)
 	}
-	logger.Info("rule management REST listening", "address", httpListener.Addr().String())
+	logger.Info("management REST listening", "address", httpListener.Addr().String())
 
 	logger.Info("engine listening",
 		"address", listener.Addr().String(),
